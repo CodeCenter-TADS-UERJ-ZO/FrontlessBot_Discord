@@ -4,6 +4,7 @@
 import discord
 from discord.ext import commands
 
+
 #        Carregando  as  regras  aqui  por  enquanto
 #   o intuito era  fazer o  bot carregar um JSON com elas
 #   mas  lendo a documentação  descobri  que não é  muito
@@ -73,79 +74,54 @@ regras_arr: list[list[str]] = [
     ["13. Tenha bom senso e ética.", "Isso é óbvio."],
 ]
 
+roles_arr: list[int] = [
+    1056704289214578768,
+    1056704334697607241,
+    1056704360937173022,
+    1056704469808713738,
+    1056704503363162206,
+    1056704647844347984,
+]
 
-class SelectRoles(discord.ui.View):
-    """custom view"""
 
-    opts: list[discord.SelectOption] = [
-        discord.SelectOption(label="Go", description="Go", value="Go"),
-        discord.SelectOption(label="C", description="C", value="C"),
-        discord.SelectOption(label="Python", description="Python", value="Python"),
-        discord.SelectOption(label="Java", description="Java", value="Java"),
-        discord.SelectOption(
-            label="JavaScript", description="JavaScript", value="JavaScript"
-        ),
-        discord.SelectOption(label="NASM", description="NASM", value="NASM"),
-    ]
+class RoleButton(discord.ui.Button):
+    """."""
 
-    @discord.ui.select(
-        placeholder="Selecione suas linguagens",
-        min_values=1,
-        max_values=6,
-        options=opts,
-    )
-    async def select_callback(self, select, interaction):
-        """callback function"""
-        roles_dict: dict[str, int] = {
-            "Python": 1056704289214578768,
-            "Go": 1056704334697607241,
-            "JavaScript": 1056704360937173022,
-            "Java": 1056704469808713738,
-            "NASM": 1056704503363162206,
-            "C": 1056704647844347984,
-        }
+    def __init__(self, role: discord.Role) -> None:
+        """A button for one role. `custom_id` is needed for persistent views."""
+        super().__init__(
+            label=role.name,
+            style=discord.ButtonStyle.primary,
+            custom_id=str(role.id),
+        )
 
-        user = interaction.user
-        for i in select.values:
-            if i in roles_dict:
-                print(f"{i}:{roles_dict[i]}")
-                role = interaction.guild.get_role(roles_dict[i])
-                # await interaction.user.add_roles(role)
-                if role not in user.roles:
-                    await user.add_roles(role)
-                    await interaction.response.send_message(
-                        f"Cargos adicionados {user.mention}",
-                        ephemeral=True,
-                    )
-                else:
-                    await user.remove_roles(role)
-                    await interaction.response.send_message(
-                        f"Cargos removidos {user.mention}",
-                        ephemeral=True,
-                    )
+    async def callback(self, interaction: discord.Interaction) -> None:
+        """
+        This function will be called any time a user clicks on this button.
+        Parameters
+        ----------
+        interaction: :class:`discord.Interaction`
+            The interaction object that was created when a user clicks on a button.
+        """
 
-        await interaction.response.send_message("pronto!", ephemeral=True)
+        user: discord.User | discord.Member | None = interaction.user
+        role: discord.Role | None = interaction.guild.get_role(int(self.custom_id))
 
-    #             IMPLEMENTAÇÃO AINDA NÃO SUPORTADA
-    #   Enquanto   lia   a   API   descobri   a   role_select
-    #   que  gera  um  menu  baseado nos  cargos do  servidor
-    #   porém, ela é bem recente e não existe opção de filtro
-    #   e   nem   o   py-cord   implementa   ela    muito bem
-    #   então optei por usar o  "modo antigo"  pelo  controle
-    #   mas  quis  salvar  essa implementação para uma futura
-    #   atualização no código do bot.
-    #
-    # @discord.ui.select(
-    #     select_type=discord.ComponentType.role_select,
-    #     placeholder="Selecione suas linguagens",
-    #     min_values=1,
-    #     max_values=25,
-    # )
-    # async def select_callback(self, select, interaction):
-    #     """callback function"""
-    #     for i in select.values:
-    #         await interaction.user.add_roles(i)
-    #     await interaction.response.send_message("pronto!")
+        if role is None:
+            return
+
+        if role not in user.roles:
+            await user.add_roles(role)
+            await interaction.response.send_message(
+                f"added role {role.mention}!",
+                ephemeral=True,
+            )
+        else:
+            await user.remove_roles(role)
+            await interaction.response.send_message(
+                f"removed role {role.mention}",
+                ephemeral=True,
+            )
 
 
 class Adminstrative(commands.Cog):
@@ -191,7 +167,24 @@ class Adminstrative(commands.Cog):
     @commands.slash_command(name="test_langs", description="test_langs")
     async def langs(self, ctx: discord.ApplicationContext) -> None:
         """langs"""
-        await ctx.send("Selecione uma linguagem", view=SelectRoles(timeout=None))
+        view: discord.ui.View = discord.ui.View(timeout=None)
+
+        for role_id in roles_arr:
+            role: discord.Role | None = ctx.guild.get_role(role_id)
+            view.add_item(RoleButton(role))
+
+        await ctx.respond("clique no cargo desejado", view=view)
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        """."""
+        view: discord.ui.View = discord.ui.View(timeout=None)
+        guild: discord.Guild = self.bot.get_guild(1002319287308005396)
+        for role_id in roles_arr:
+            role: discord.Role | None = guild.get_role(role_id)
+            view.add_item(RoleButton(role))
+
+        self.bot.add_view(view)
 
 
 def setup(bot) -> None:
