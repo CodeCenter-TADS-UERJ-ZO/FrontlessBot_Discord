@@ -4,7 +4,6 @@ import os
 import discord
 from dotenv import load_dotenv  # pylint: disable=import-error
 from discord.ext import commands
-from discord.abc import GuildChannel
 
 # from discord import utils
 
@@ -24,7 +23,7 @@ class Greetings(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         """function that runs when members joins"""
-        chan: GuildChannel = self.bot.get_channel(WELCOME_CHANNEL)
+        # chan: GuildChannel = self.bot.get_channel(WELCOME_CHANNEL)
 
         greet_member: str = f"Bem Vindo(a) {member.display_name}"
         embed: discord.Embed = discord.Embed(
@@ -32,10 +31,11 @@ class Greetings(commands.Cog):
             description="Vá ao canal #instruções",
             color=discord.Colour.light_grey(),
         )
+
         embed.set_author(name=member.display_name, icon_url=member.avatar.url)
         embed.set_thumbnail(url=member.avatar.url)
         embed.set_footer(text=f"User ID: {member.id}")
-        await chan.send(member.mention, embed=embed)
+        # await chan.send(member.mention, embed=embed)
 
 
 def setup(bot) -> None:

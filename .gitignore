@@ -2,4 +2,4 @@
 
 .env
 
-src/cogs/__pycache__/
+./src/cogs/__pycache__/

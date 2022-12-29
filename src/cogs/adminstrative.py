@@ -1,4 +1,4 @@
-"""Cog that contains all adminstrative commands"""
+"""Módulo do bot que contém toda a funcionalidade de administração"""
 
 
 import discord
@@ -75,34 +75,39 @@ regras_arr: list[list[str]] = [
 ]
 
 roles_arr: list[int] = [
-    1056704289214578768,
-    1056704334697607241,
-    1056704360937173022,
-    1056704469808713738,
-    1056704503363162206,
-    1056704647844347984,
+    1056704289214578768,  # Python
+    1056704334697607241,  # Go
+    1056704360937173022,  # JavaScript
+    1056704469808713738,  # Java
+    1056704503363162206,  # NASM
+    1056704647844347984,  # C
 ]
+
+roles_dict: dict[str, list[int, str]] = {
+    "Python": [1056704289214578768, "Python"],
+    "Go": [1056704334697607241, "Go"],
+    "JavaScript": [1056704360937173022, "JavaScript"],
+    "Java": [1056704469808713738, "Java"],
+    "NASM": [1056704503363162206, "NASM"],
+    "C": [1056704647844347984, "C"],
+}
+
+# everyone id: 1002319287308005396
 
 
 class RoleButton(discord.ui.Button):
-    """."""
+    """Classe que implementa a lógica dos botões de cargo."""
 
     def __init__(self, role: discord.Role) -> None:
         """A button for one role. `custom_id` is needed for persistent views."""
         super().__init__(
             label=role.name,
-            style=discord.ButtonStyle.primary,
+            style=discord.ButtonStyle.grey,
             custom_id=str(role.id),
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        """
-        This function will be called any time a user clicks on this button.
-        Parameters
-        ----------
-        interaction: :class:`discord.Interaction`
-            The interaction object that was created when a user clicks on a button.
-        """
+        """Função executada toda vez que o usuário clicar em um botão."""
 
         user: discord.User | discord.Member | None = interaction.user
         role: discord.Role | None = interaction.guild.get_role(int(self.custom_id))
@@ -113,27 +118,121 @@ class RoleButton(discord.ui.Button):
         if role not in user.roles:
             await user.add_roles(role)
             await interaction.response.send_message(
-                f"added role {role.mention}!",
-                ephemeral=True,
+                f"added role {role.mention}!", ephemeral=True, delete_after=1.5
             )
         else:
             await user.remove_roles(role)
             await interaction.response.send_message(
-                f"removed role {role.mention}",
-                ephemeral=True,
+                f"removed role {role.mention}", ephemeral=True, delete_after=1.5
             )
+
+
+class RoleSelect(discord.ui.Select):
+    """."""
+
+    def __init__(self) -> None:
+        options: list[discord.SelectOption] = []
+        for _k, _v in roles_dict.items():
+            opt: discord.SelectOption = discord.SelectOption(
+                label=_k, value=str(_v[0]), description=_v[1]
+            )
+            options.append(opt)
+
+        max_val: int = 25 if len(options) > 25 else len(options)
+        super().__init__(
+            placeholder="Selecione suas linguagens",
+            max_values=max_val,
+            min_values=0,
+            options=options,
+            custom_id="RoleSelector01",
+        )
+
+    async def callback(  # pylint: disable=too-many-locals too-many-branches
+        self, interaction: discord.Interaction
+    ) -> None:
+        """."""
+        message: discord.Message = interaction.message
+        guild: discord.Guild = interaction.guild
+        user: discord.User | discord.Member = interaction.user
+        dev_role: discord.Role = guild.get_role(1058049513111167016)
+        selected_roles: list[discord.Role] = []
+        roles_to_add: list[discord.Role] = []
+        roles_to_remove: list[discord.Role] = []
+        roles_to_add_mentions: list[discord.Role] = []
+        roles_to_remove_mentions: list[discord.Role] = []
+
+        for i in self.values:
+            role: discord.Role = guild.get_role(int(i))
+            selected_roles.append(role)
+
+        for _role in selected_roles:
+            if _role not in user.roles:
+                roles_to_add.append(_role)
+                roles_to_add_mentions.append(_role.mention)
+            else:
+                roles_to_remove.append(_role)
+                roles_to_remove_mentions.append(_role.mention)
+
+        if dev_role in user.roles:
+            for _role_add in roles_to_add:
+                await user.add_roles(_role_add)
+
+            for _role_remove in roles_to_remove:
+                await user.remove_roles(_role_remove)
+
+            adding_str: str = f"adicionando cargos: {', '.join(roles_to_add_mentions)}"
+            removing_str: str = (
+                f"removendo cargos: {', '.join(roles_to_remove_mentions)}"
+            )
+            if len(selected_roles) == 0:
+                message_content: str = "Selecione algum cargo"
+            else:
+                if len(roles_to_remove_mentions) == 0:
+                    message_content: str = adding_str.capitalize()
+                elif len(roles_to_add_mentions) == 0:
+                    message_content: str = removing_str.capitalize()
+                else:
+                    message_content: str = (
+                        f"{adding_str.capitalize()} e {removing_str.capitalize()}"
+                    )
+        else:
+            message_content = f"Você não tem o cargo {dev_role.mention}"
+
+        if message:
+            await interaction.response.send_message(
+                content=message_content,
+                ephemeral=True,
+                delete_after=5,
+            )
+        else:
+            await interaction.edit_original_response(
+                content=message_content,
+                ephemeral=True,
+                delete_after=5,
+            )
+
+
+class PersistentView(discord.ui.View):
+    """."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+        self.add_item(RoleSelect())
 
 
 class Adminstrative(commands.Cog):
     """Cog used to manage all Administrative commands"""
 
+    bot_icon_url: str = "https://cdn.discordapp.com/app-icons/1056943227183321118/08902aef3ee87acc3e69081c0a012b71.png?size=2048"  # pylint: disable=line-too-long
+
     def __init__(self, bot) -> None:
         self.bot = bot
+        self.bot.persistent_views_added = False
 
     @commands.slash_command(name="regras", description="Exibe as regras")
+    @commands.has_role(1056755317419028560)
     async def regras(self, ctx: discord.ApplicationContext) -> None:
-        """function that executes when a user uses de /hello command"""
-        icon_url: str = "https://cdn.discordapp.com/app-icons/1056943227183321118/08902aef3ee87acc3e69081c0a012b71.png?size=2048"  # pylint: disable=line-too-long
+        """Função que exibe as regras do servidor"""
 
         embed: discord.Embed = discord.Embed(
             title="Regras",
@@ -158,15 +257,18 @@ class Adminstrative(commands.Cog):
         embed.add_field(name=regras_arr[15][0], value=regras_arr[15][1], inline=False)
         embed.add_field(name=regras_arr[16][0], value=regras_arr[16][1], inline=False)
 
-        embed.set_author(name="Frontless Programming", icon_url=icon_url)
-        embed.set_thumbnail(url=icon_url)
-        embed.set_footer(text="Feito pela comunidade com ❤️.", icon_url=icon_url)
+        embed.set_author(name="Frontless Programming", icon_url=self.bot_icon_url)
+        embed.set_thumbnail(url=self.bot_icon_url)
+        embed.set_footer(
+            text="Feito pela comunidade com ❤️.", icon_url=self.bot_icon_url
+        )
 
         await ctx.respond(embed=embed)
 
-    @commands.slash_command(name="test_langs", description="test_langs")
+    @commands.slash_command(name="select_langs_button", description="test_langs")
+    @commands.has_role(1056755317419028560)
     async def langs(self, ctx: discord.ApplicationContext) -> None:
-        """langs"""
+        """Itera sob a array de cargos e gera botões para cada um deles"""
         view: discord.ui.View = discord.ui.View(timeout=None)
 
         for role_id in roles_arr:
@@ -175,16 +277,79 @@ class Adminstrative(commands.Cog):
 
         await ctx.respond("clique no cargo desejado", view=view)
 
+    @commands.slash_command(
+        name="language_selection",
+        description="Displays the dropdown for the language selection",
+    )
+    @commands.has_role(1056755317419028560)
+    async def language_selection(self, ctx: discord.ApplicationContext) -> None:
+        """Displays the dropdown for the language selection"""
+
+        if ctx.message:
+            await ctx.edit(view=PersistentView())
+        else:
+            await ctx.respond(view=PersistentView())
+
+    @commands.slash_command(
+        name="create_category",
+        description="Cria uma categoria, os cargos e configura todos os canais",
+    )
+    @commands.has_role(1056755317419028560)
+    async def create_category(self, ctx: discord.ApplicationContext) -> None:
+        """Comando de gerenciamento de categorias, especifico para as categorias de linguagem
+        tem como argumento o nome da linguagem em questão e cria todos os canais base da categoria
+        além de criar o cargo e configurar as permissões."""
+
+        await ctx.respond("Implementação em progresso...")
+
+    async def cog_command_error(
+        self, ctx: commands.Context, error: commands.CommandError
+    ) -> None:
+        if isinstance(error, commands.MissingRole):
+            await ctx.send(
+                f"Permissão negada {ctx.author.name} esse comando só pode ser usado por um administrador.",  # pylint: disable=line-too-long
+                reference=ctx.message,
+                delete_after=4,
+            )
+        else:
+            raise error  # Here we raise other errors to ensure they aren't ignored
+
+    @commands.slash_command(name="welcome", description="Exibe a tela de boas-vindas")
+    @commands.has_role(1056755317419028560)
+    async def welcome(self, ctx: discord.ApplicationContext) -> None:
+        """."""
+
+        rule_channel: discord.TextChannel = ctx.guild.get_channel(1056738639813546034)
+        embed: discord.Embed = discord.Embed(
+            title="Bem-vindo(a)",
+            color=discord.Colour.light_grey(),
+        )
+        embed.add_field(
+            name="Leia-me",
+            value=f"Nessa comunidade programadores se reunem para conversar, estudar e interagir entre si. Recomendo dar uma lida nas {rule_channel.mention} para ter certeza de que você não vai levar um timeout por engano.\n\n**Siga as instruções abaixo para ter acesso ao servidor**\n",  # pylint: disable=line-too-long
+            inline=False,
+        )
+        embed.set_author(name="Frontless Programming")
+        embed.set_thumbnail(url=self.bot_icon_url)
+        embed.set_footer(
+            text="Um abraço da FrontlessTeam. ❤️.", icon_url=self.bot_icon_url
+        )
+        await ctx.respond(embed=embed)
+
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        """."""
-        view: discord.ui.View = discord.ui.View(timeout=None)
-        guild: discord.Guild = self.bot.get_guild(1002319287308005396)
-        for role_id in roles_arr:
-            role: discord.Role | None = guild.get_role(role_id)
-            view.add_item(RoleButton(role))
+        """Listener para reativar os botões ao iniciar do bot"""
+        if not self.bot.persistent_views_added:
+            self.bot.add_view(PersistentView())
 
-        self.bot.add_view(view)
+            view: discord.ui.View = discord.ui.View(timeout=None)
+            guild: discord.Guild = self.bot.get_guild(1002319287308005396)
+            for role_id in roles_arr:
+                role: discord.Role | None = guild.get_role(role_id)
+                view.add_item(RoleButton(role))
+
+            self.bot.add_view(view)
+            self.bot.persistent_views_added = True
 
 
 def setup(bot) -> None:
