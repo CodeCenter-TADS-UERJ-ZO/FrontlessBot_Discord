@@ -4,7 +4,11 @@ Um bot de gerenciamento para o meu servidor do Discord.
 
 Autores: Mirai
 Data de Início: 26/12/2022"""
-# pylint: disable=line-too-long
+# pylint: disable=all
+
+# This software uses the Semantic Versioning system.
+# Refer to: https://semver.org/ for more info.
+# CURRENT VERSION: v0.1.0
 
 import typing
 from pathlib import Path
@@ -13,6 +17,10 @@ import asyncio
 from dotenv import load_dotenv  # pylint: disable=import-error
 import discord
 import aiosqlite
+
+from modules.CustomDatabase.CustomDatabase import (  # pylint: disable=import-error
+    CustomDatabase,
+)
 
 #   Essas variaveis são placeholders para quando
 #   eu precisar  atualizar os  dados fixos da DB
@@ -28,7 +36,6 @@ bot_intents: discord.Intents = discord.Intents(
 
 
 bot: discord.Bot = discord.Bot(intents=bot_intents)  # pylint: disable=no-member
-bot.db_connected = asyncio.Event()
 
 table_create_commands = [
     "CREATE TABLE IF NOT EXISTS rules(name TEXT, description TEXT, UNIQUE(name, description))",
@@ -100,12 +107,16 @@ async def add_github_colors(connection) -> None:
 @bot.event
 async def on_ready() -> None:
     """function that executes when the bot is ready"""
-    bot.db = await aiosqlite.connect(db_path)  # type: ignore
-    bot.db_connected.set()
+    conn = await aiosqlite.connect(db_path)
+    db_connected = asyncio.Event()
+    db_connected.set()
+    custom_db = CustomDatabase(conn, db_connected.wait)
+    bot.db = custom_db
+
     if Path(db_path).exists():
-        await create_tables(bot.db)  # type: ignore
-        await add_rules(bot.db)  # type: ignore
-        await add_github_colors(bot.db)  # type: ignore
+        await create_tables(conn)  # type: ignore
+        await add_rules(conn)  # type: ignore
+        await add_github_colors(conn)  # type: ignore
     else:
         print("database does not exists.")
     print(f"{bot.user} has connected to Discord.")

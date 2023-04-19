@@ -172,7 +172,6 @@ class Generic(commands.Cog):
                 cogs_list.append(cog)
 
             for _cog in cogs_list:
-
                 ebd: discord.Embed = discord.Embed(
                     title=_cog.qualified_name,
                     description=f"Comandos da cog {_cog.qualified_name}",
@@ -251,7 +250,6 @@ class Generic(commands.Cog):
                 cogs_list.append(cog)
 
             for _cog in cogs_list:
-
                 ebd: discord.Embed = discord.Embed(
                     title=_cog.qualified_name,
                     description=f"Comandos da cog {_cog.qualified_name}",

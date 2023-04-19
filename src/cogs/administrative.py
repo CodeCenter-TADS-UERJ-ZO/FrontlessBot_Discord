@@ -1,20 +1,123 @@
 """Módulo do bot que contém toda a funcionalidade de administração"""
-# pylint: disable=line-too-long too-many-lines too-many-locals too-many-branches too-many-statements too-many-instance-attributes too-many-arguments
+# pylint: disable=all
+
+#   Code should be self descriptive (telling you how)
+#   Documentation should tell you how to use and maybe why
+#   Comments should tell you why
+
+# ┌─TODOs
+# ├┬─[ ] Refactoring
+# │└┬──[x] - Error Handling
+# │ ├──[ ] - Composition Practices
+# │ ├──[x] - Warn User
+# │ ├──[x] - Ban User
+# │ ├──[x] - Timeout User
+# │ ├┬─[x] - Revokes
+# │ │├──[x] - Ban (unban)
+# │ │├──[x] - Warn
+# │ │└──[x] - Timeout
+# │ ├──[x] - Rules
+# │ ├──[x] - Language Selection Dropdown
+# │ ├──[x] - Welcome User
+# │ ├┬─[x] - Requests
+# │ │├──[x] - Warn
+# │ │└──[x] - Timeout
+# │ ├┬─[x] - Create Category
+# │ │├──[x] - Variables Initializer
+# │ │├──[x] - Set Permissions
+# │ │├──[x] - Voice Channels
+# │ │└──[x] - Text Channels
+# │ ├──[x] - Lock Server
+# │ ├──[x] - Restore Server
+# │ ├──[ ] - DocStrings
+# │ ├┬─[ ] - Documentation
+# │ │├──[ ] - User
+# │ │└──[ ] - Contributor
+# │ └┬─[x] - Views/Classes
+# │  ├──[x] - TimeOut Dropdown Menu View
+# │  ├──[x] - TimeOut Prompt View
+# │  ├──[x] - Timeout Accept View
+# │  ├──[x] - TimeOut Request View
+# │  ├──[x] - Warn Accept View
+# │  ├──[x] - Warn Request View
+# │  ├──[x] - Role Select
+# │  ├──[x] - Persistent View
+# │  ├──[x] - Color Selector Modal
+# │  ├──[x] - Programming Role Description Modal
+# │  ├──[x] - Programming Role Modal
+# │  ├──[x] - Ban Confirmation View
+# │  └──[x] - User Unban Dropdown
+# └┬─[ ] Implement
+#  ├──[ ] - Get all-user DataBase data by command (/request_data)
+#  ├──[ ] - Request System (Changes, etc...)
+#  │   └─>  This will use Forum-Channels and emojis for voting
+#  │        The bot will automatically create a "Request" and populate
+#  │        with the basic emojis for votinng.
+#  ├──[ ] - Guide System (How-To setup something)
+#  ├──[ ] - Docs Search (Parse the Docs from a language and search in it.)
+#  ├──[ ] - Delete Category (Recursively delete the channels in a category)
+#  ├──[ ] - Button selections between University role and Common role.
+#  ├──[ ] - Improve Category Creator to create university channels aswell.
+#  ├──[ ] - Change welcome screen to reflect changes.
+#  ├──[ ] - Checks for auto-modding
+#  └──[ ] - (MAYBE) Implement OpenAI ChatGPT3 integration.
+
+
+# │ ┤ ┐ └ ┴ ┬ ├ ─ ┼ ┘ ┌ •
+
 
 import typing
 from datetime import datetime, timedelta
 from time import time
-from aiosqlite import Connection
+import tomllib
 import discord
 from discord.ext import commands
 
+from modules.CustomDatabase.CustomDatabase import (  # pylint: disable=import-error
+    CustomDatabase,
+)
+from modules.CustomLogger.CustomLogger import (
+    Logger,
+)  # pylint: disable=import-error no-name-in-module
+
+# region Variables
+
+BOT_ICON_URL: str = (
+    "https://cdn.discordapp.com/app-icons/1056943227183321118/"
+    "08902aef3ee87acc3e69081c0a012b71.png?size=2048"
+)
+
+MOD_LOGS_CHAN_ID: int = 1092825274439180430
+WELCOME_CHAN_ID: int = 1056710866147483760
+REQUEST_CHAN_ID: int = 1059280455263850577
+RULES_CHAN_ID: int = 1056738639813546034
+
+DEV_ROLE_ID: int = 1058049513111167016
+GAME_ROLE_ID: int = 1058052420627857558
+EVERYONE_ROLE_ID: int = 1002319287308005396
+ADMIN_ROLE_ID: int = 1056755317419028560
+UNIVERSITY_ROLE_ID: int = 1090283255699357796
+
+CHANNELS_DELAY: int = 10
+
+ONE_MINUTE = 60
+FIVE_MINUTES = 300
+TEN_MINUTES = 600
+FIFTEEN_MINUTES = 900
+THIRTY_MINUTES = 1800
+ONE_HOUR = 3600
+TWELVE_HOURS = 43200
+ONE_DAY = 86400
+TWO_DAYS = 172800
+ONE_WEEK = 604800
+
 timeout_types: dict[str, list[typing.Union[int, str]]] = {
-    "1": [60, "1 minuto"],
-    "2": [300, "5 minutos"],
-    "3": [600, "10 minutos"],
-    "4": [3600, "1 hora"],
-    "5": [86400, "1 dia"],
-    "6": [604800, "1 semana"],
+    "1": [ONE_MINUTE, "1 minuto"],
+    "2": [FIVE_MINUTES, "5 minutos"],
+    "3": [TEN_MINUTES, "10 minutos"],
+    "4": [ONE_HOUR, "1 hora"],
+    "5": [ONE_DAY, "1 dia"],
+    "6": [ONE_WEEK, "1 semana"],
 }
 
 timeout_types_options: list[discord.SelectOption] = [
@@ -37,22 +140,9 @@ timeout_types_options.append(
     )
 )
 
-bot_icon_url: str = "https://cdn.discordapp.com/app-icons/1056943227183321118/08902aef3ee87acc3e69081c0a012b71.png?size=2048"  # pylint: disable=line-too-long
-mod_logs_chan_id: int = 1059634018653585470
+# endregion
 
-
-# ██████████████████████████████████████████████████████████████████████████████████████████████████████████╗
-# ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-
-# ██╗  ██╗███████╗██╗     ██████╗ ███████╗██████╗     ███████╗██╗   ██╗███╗   ██╗ ██████╗████████╗██╗ ██████╗ ███╗   ██╗███████╗
-# ██║  ██║██╔════╝██║     ██╔══██╗██╔════╝██╔══██╗    ██╔════╝██║   ██║████╗  ██║██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝
-# ███████║█████╗  ██║     ██████╔╝█████╗  ██████╔╝    █████╗  ██║   ██║██╔██╗ ██║██║        ██║   ██║██║   ██║██╔██╗ ██║███████╗
-# ██╔══██║██╔══╝  ██║     ██╔═══╝ ██╔══╝  ██╔══██╗    ██╔══╝  ██║   ██║██║╚██╗██║██║        ██║   ██║██║   ██║██║╚██╗██║╚════██║
-# ██║  ██║███████╗███████╗██║     ███████╗██║  ██║    ██║     ╚██████╔╝██║ ╚████║╚██████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
-# ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝    ╚═╝      ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
-
-# ██████████████████████████████████████████████████████████████████████████████████████████████████████████╗
-# ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+# region Helper Functions
 
 
 def hex_to_rgb(hex_code: str) -> tuple[str]:
@@ -61,51 +151,357 @@ def hex_to_rgb(hex_code: str) -> tuple[str]:
     return tuple(int(_h[i : i + 2], 16) for i in (0, 2, 4))
 
 
-# ██████████████████████████████████████████████████████████████████████████████████████████████████████████╗
-# ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+async def user_check(
+    user_id: int, context: discord.ApplicationContext, bot: discord.Bot
+) -> bool:
+    """."""
+    return_value: bool = False
+    if user_id == context.guild.owner_id:
+        await context.respond("Dono do servidor detectado, ação cancelada.")
+        return_value = True
 
-#  ██████╗ ██╗       █████╗  ███████╗ ███████╗ ███████╗ ███████╗
-# ██╔════╝ ██║      ██╔══██╗ ██╔════╝ ██╔════╝ ██╔════╝ ██╔════╝
-# ██║      ██║      ███████║ ███████╗ ███████╗ █████╗   ███████╗
-# ██║      ██║      ██╔══██║ ╚════██║ ╚════██║ ██╔══╝   ╚════██║
-# ╚██████╗ ███████╗ ██║  ██║ ███████║ ███████║ ███████╗ ███████║
-#  ╚═════╝ ╚══════╝ ╚═╝  ╚═╝ ╚══════╝ ╚══════╝ ╚══════╝ ╚══════╝
+    if user_id == bot.user.id:
+        await context.respond("FrontlessBot detectado, ação cancelada.")
+        return_value = True
 
-# ██████████████████████████████████████████████████████████████████████████████████████████████████████████╗
-# ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+    return return_value
 
-# ████████╗██╗███╗   ███╗███████╗ ██████╗ ██╗   ██╗████████╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ╚══██╔══╝██║████╗ ████║██╔════╝██╔═══██╗██║   ██║╚══██╔══╝    ██║   ██║██║██╔════╝██║    ██║
-#    ██║   ██║██╔████╔██║█████╗  ██║   ██║██║   ██║   ██║       ██║   ██║██║█████╗  ██║ █╗ ██║
-#    ██║   ██║██║╚██╔╝██║██╔══╝  ██║   ██║██║   ██║   ██║       ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-#    ██║   ██║██║ ╚═╝ ██║███████╗╚██████╔╝╚██████╔╝   ██║        ╚████╔╝ ██║███████╗╚███╔███╔╝
-#    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝  ╚═════╝    ╚═╝         ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
+
+async def warn_user_func(
+    database: CustomDatabase,
+    db_parameters: tuple,
+) -> None:  #! To refactor
+    """."""
+    args: list[str] = [
+        "user_name",
+        "user_discriminator",
+        "user_id",
+        "reason",
+        "type",
+        "unix_date",
+    ]
+
+    user_not_warned: bool = True
+
+    tables: list[str] = ["active_warns", "warns_history"]
+
+    user_warn = await database.fetch(
+        table=tables[0], search_key="user_id", parameters=db_parameters[2]
+    )
+
+    if not user_warn:
+        Logger.info("user not found in warn table")
+        for table in tables:
+            await database.insert(table=table, arguments=args, parameters=db_parameters)
+        user_not_warned = True
+    else:
+        user_not_warned = False
+
+    return user_not_warned
+
+
+async def timeout_user_func(
+    user: discord.User,
+    timeout_time: int,
+    database: CustomDatabase,
+    db_parameters: tuple,
+) -> None:
+    """."""
+    args: list[str] = [
+        "user_name",
+        "user_discriminator",
+        "user_id",
+        "timeout_description",
+        "reason",
+        "level",
+        "type",
+        "unix_date",
+    ]
+    tables: list[str] = ["active_timeouts", "timeouts_history"]
+    for table in tables:
+        await database.insert(table=table, arguments=args, parameters=db_parameters)
+
+    await user.timeout_for(timedelta(seconds=timeout_time))
+
+
+async def ban_user_func(
+    user: discord.User,
+    reason: str,
+    database: CustomDatabase,
+    db_parameters: tuple,
+) -> None:
+    """."""
+    tables: list[str] = ["active_bans", "ban_history"]
+    args: list[str] = [
+        "user_name",
+        "user_discriminator",
+        "user_id",
+        "reason",
+        "unix_date",
+    ]
+    for table in tables:
+        await database.insert(table=table, arguments=args, parameters=db_parameters)
+
+    await user.ban(reason=reason)
+
+
+# endregion
+######################################################
+######################################################
+
+
+async def _create_class_code_voice_channels(
+    category: discord.CategoryChannel,
+    role: list,
+):
+    "."
+
+
+async def _create_code_voice_channels(category: discord.CategoryChannel):
+    "..."
+
+
+class CreateCodeClassView(discord.ui.View):
+    def __init__(
+        self,
+        *items: discord.ui.Item,
+        timeout: float | None = 180,
+        disable_on_timeout: bool = False,
+        category: discord.CategoryChannel,
+        role: list,
+    ):
+        super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
+        self.category: discord.CategoryChannel = category
+        self.role: list = role
+
+    @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
+    async def yes_button_callback(self, _, interaction: discord.Interaction) -> bool:
+        self.stop()
+        for i in range(4):
+            await self.category.create_voice_channel(name=f"Canal de voz [{i+1:0>2}]")
+
+        for i in range(2):
+            st_chan: discord.StageChannel = await self.category.create_stage_channel(
+                name=f"Aula Live [{i+1:0>2}]", topic="Aula Live"
+            )
+            await st_chan.set_permissions(target=self.role[0], overwrite=self.role[1])
+            print(f"{st_chan = }")
+
+        await interaction.response.send_message("Canais criados.")
+
+    @discord.ui.button(label="Não", style=discord.ButtonStyle.danger)
+    async def no_button_callback(self, _, interaction: discord.Interaction) -> bool:
+        self.stop()
+        for i in range(4):
+            await self.category.create_voice_channel(name=f"Canal de voz [{i+1:0>2}]")
+
+        await interaction.response.send_message("Canais criados.")
 
 
 class TimeOutDropdownMenuView(discord.ui.View):
     """."""
 
-    def __init__(  # pylint: disable=useless-parent-delegation
+    def __init__(
         self,
         *items: discord.ui.Item,
         timeout: float | None = 180,
         disable_on_timeout: bool = False,
         user: discord.User,
-        delete_func,
-        delete_parent_msg_func,
+        delete_func: typing.Callable,
+        delete_parent_msg_func: typing.Callable,
         reason: str,
-        database: Connection,
-        bot_event_wait_func: typing.Any,
-        delete_cmd_msg=None,
+        delete_cmd_msg: typing.Callable | None = None,
+        database: CustomDatabase,
     ) -> None:
         super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
         self.user: discord.User = user
-        self.delete_func: typing.Any = delete_func
-        self.delete_parent_msg_func: typing.Any = delete_parent_msg_func
+        self.delete_func: typing.Callable = delete_func
+        self.delete_parent_msg_func: typing.Callable = delete_parent_msg_func
         self.reason: str = reason
-        self.database: Connection = database
-        self.bot_event_wait_func: typing.Any = bot_event_wait_func
-        self.delete_cmd_msg = delete_cmd_msg
+        self.delete_cmd_msg: typing.Callable = delete_cmd_msg
+        self.database: CustomDatabase = database
+
+    async def _del_msgs(self) -> None:
+        if self.delete_func is not None:
+            await self.delete_func(delay=1)
+        if self.delete_parent_msg_func is not None:
+            await self.delete_parent_msg_func(delay=1)
+        if self.delete_cmd_msg is not None:
+            self.delete_cmd_msg(delete_after=1)
+
+    async def _case_one(
+        self,
+        selected_value: str,
+        interaction: discord.Interaction,
+        mod_log_chan: discord.TextChannel,
+        timeout_type: str,
+    ) -> None:
+        self.stop()
+        timeout_time: int = int(timeout_types[selected_value][0])
+        await self.user.timeout_for(timedelta(seconds=timeout_time))
+        timeout_description: str = str(timeout_types[selected_value][1])
+
+        desc_1: str = (
+            f"Timeout de {timeout_description} aplicado ao usuário "
+            f"{self.user.mention} pelo moderador {interaction.user.mention}."
+        )
+
+        timeout_embed: discord.Embed = discord.Embed(
+            title="Aviso de timeout",
+            description=desc_1,
+            colour=discord.Colour.orange(),
+            timestamp=datetime.now(),
+        )
+        timeout_embed.set_thumbnail(url=self.user.avatar.url)
+
+        desc_2: str = (
+            f"aplicando timeout de {timeout_description} "
+            f"ao usuário {self.user.mention}"
+        )
+        if mod_log_chan is not None:
+            await mod_log_chan.send(embed=timeout_embed)
+        else:
+            temp_chan = interaction.guild.get_channel(MOD_LOGS_CHAN_ID)
+            temp_chan.send(embed=timeout_embed)
+        await interaction.response.send_message(
+            content=desc_2,
+            ephemeral=True,
+        )
+
+        await interaction.delete_original_response(delay=2)
+        await self._del_msgs()
+
+        parameters = (
+            self.user.name,
+            self.user.discriminator,
+            int(self.user.id),
+            timeout_description,
+            str(self.reason),
+            int(selected_value),
+            timeout_type,
+            int(time()),
+        )
+
+        await timeout_user_func(
+            user=self.user,
+            database=self.database,
+            db_parameters=parameters,
+            timeout_time=timeout_time,
+        )
+
+    async def _case_two(self, interaction: discord.Interaction) -> None:
+        self.stop()
+        await interaction.response.send_message(
+            "Ignorando violação de diretrizes.", ephemeral=True
+        )
+        await interaction.delete_original_response(delay=2)
+        await self._del_msgs()
+
+    async def _case_three_subcase_one(
+        self, interaction: discord.Interaction, max_timeout_types: str | int
+    ) -> None:
+        timeout_description: str = str(timeout_types[str(max_timeout_types)][1])
+        msg: str = (
+            f"Usuário já contém um timeout de {timeout_description} "
+            "diretrizes implicam que a próxima medida "
+            "preventiva seja banimento, deseja aplica-lo?"
+        )
+        await interaction.response.send_message(
+            content=msg,
+            view=BanConfirmationView(
+                user=self.user,
+                delete_func=self.delete_func,
+                database=self.database,
+                reason=self.reason,
+            ),
+        )
+
+    async def _case_three_subcase_two(
+        self,
+        interaction: discord.Interaction,
+        mod_log_chan: discord.TextChannel,
+        max_user_timeout_type: int,
+    ) -> None:
+        max_user_timeout_type += 1
+        timeout_time: int = int(timeout_types[str(max_user_timeout_type)][0])
+        timeout_description: str = str(timeout_types[str(max_user_timeout_type)][1])
+        print(f"{timeout_description = }")
+        print(f"{timeout_time = }")
+        print(f"{max_user_timeout_type = }")
+
+        res: str = (
+            f"aplicando timeout de {timeout_description} "
+            f"ao usuário {self.user.mention}"
+        )
+        await interaction.response.send_message(
+            content=res,
+            ephemeral=True,
+        )
+        info: str = (
+            f"Timeout de {timeout_description} aplicado "
+            f"ao usuário {self.user.mention} pelo "
+            f"moderador {interaction.user.mention}."
+        )
+        timeout_embed: discord.Embed = discord.Embed(
+            title="Aviso de timeout",
+            description=info,
+            colour=discord.Colour.orange(),
+            timestamp=datetime.now(),
+        )
+        timeout_embed.set_thumbnail(url=self.user.avatar.url)
+
+        timeout_type = "moderation"
+
+        parameters = (
+            self.user.name,
+            self.user.discriminator,
+            int(self.user.id),
+            timeout_description,
+            str(self.reason),
+            int(max_user_timeout_type),
+            timeout_type,
+            int(time()),
+        )
+
+        await timeout_user_func(
+            user=self.user,
+            database=self.database,
+            db_parameters=parameters,
+            timeout_time=timeout_time,
+        )
+
+        await mod_log_chan.send(embed=timeout_embed)
+        await interaction.delete_original_response(delay=2)
+        await self._del_msgs()
+
+    async def _case_three(
+        self, interaction: discord.Interaction, mod_log_chan: discord.TextChannel
+    ) -> None:
+        self.stop()
+        user_timeout: list[tuple] = await self.database.fetch(
+            table="active_timeouts", search_key="user_id", parameters=self.user.id
+        )
+
+        user_timeout_types: list[int] = []
+        for i in user_timeout:
+            print(i)
+            user_timeout_types.append(i[5])
+
+        max_timeout_types: int = max(list(map(int, timeout_types.keys())))
+        max_user_timeout_type: int = (
+            0 if not user_timeout else int(max(user_timeout_types))
+        )
+        print(f"{max_user_timeout_type = }")
+        if max_user_timeout_type == max_timeout_types:
+            await self._case_three_subcase_one(
+                interaction=interaction, max_timeout_types=max_timeout_types
+            )
+        else:
+            await self._case_three_subcase_two(
+                interaction=interaction,
+                mod_log_chan=mod_log_chan,
+                max_user_timeout_type=int(max_user_timeout_type),
+            )
 
     @discord.ui.select(
         placeholder="Selecione o Timeout",
@@ -118,186 +514,28 @@ class TimeOutDropdownMenuView(discord.ui.View):
     ) -> None:
         """."""
         mod_log_chan: discord.TextChannel = interaction.guild.get_channel(
-            mod_logs_chan_id
+            MOD_LOGS_CHAN_ID
         )
+        selected_value: str = str(selection.values[0])
+        timeout_type: str = "moderation"
 
-        selected_value: typing.Any = selection.values[0]
         if selected_value in timeout_types:
-            self.stop()
-            timeout_time: int = int(timeout_types[selected_value][0])  # type: ignore
-            timeout_description: str = str(timeout_types[selected_value][1])  # type: ignore
-            await self.user.timeout_for(timedelta(seconds=timeout_time))  # type: ignore
-            timeout_embed: discord.Embed = discord.Embed(
-                title="Aviso de timeout",
-                description=f"Timeout de {timeout_description} aplicado ao usuário {self.user.mention} pelo moderador {interaction.user.mention}.",
-                colour=discord.Colour.orange(),
-                timestamp=datetime.now(),
+            await self._case_one(
+                selected_value=selected_value,
+                interaction=interaction,
+                mod_log_chan=mod_log_chan,
+                timeout_type=timeout_type,
             )
-            timeout_embed.set_thumbnail(url=self.user.avatar.url)
-
-            await mod_log_chan.send(embed=timeout_embed)
-            await interaction.response.send_message(
-                content=f"aplicando timeout de {timeout_description} ao usuário {self.user.mention}",
-                ephemeral=True,
-            )
-            await interaction.delete_original_response(delay=2)
-            if self.delete_func is not None:
-                await self.delete_func(delay=1)
-            if self.delete_parent_msg_func is not None:
-                await self.delete_parent_msg_func(delay=1)
-
-            timeout_type: str = "moderation"
-            await self.bot_event_wait_func()
-            async with self.database.cursor() as cursor:
-                exec_cmd: str = "INSERT OR IGNORE INTO active_timeouts(user_name, user_discriminator, user_id, timeout_description, reason, level, type, unix_date) VALUES(?,?,?,?,?,?,?,?)"
-                exec_cmd2: str = "INSERT OR IGNORE INTO timeouts_history(user_name, user_discriminator, user_id, timeout_description, reason, level, type, unix_date) VALUES(?,?,?,?,?,?,?,?)"
-                await cursor.execute(
-                    exec_cmd,
-                    (
-                        self.user.name,
-                        self.user.discriminator,
-                        int(self.user.id),
-                        timeout_description,
-                        str(self.reason),
-                        int(selected_value),
-                        timeout_type,
-                        int(time()),
-                    ),
-                )
-                await cursor.execute(
-                    exec_cmd2,
-                    (
-                        self.user.name,
-                        self.user.discriminator,
-                        int(self.user.id),
-                        timeout_description,
-                        str(self.reason),
-                        int(selected_value),
-                        timeout_type,
-                        int(time()),
-                    ),
-                )
-            await self.database.commit()
         elif selected_value == "0":
-            self.stop()
-            await interaction.response.send_message(
-                "Ignorando violação de diretrizes.", ephemeral=True
-            )
-            await interaction.delete_original_response(delay=2)
-            if self.delete_func is not None:
-                await self.delete_func(delay=1)
-            if self.delete_parent_msg_func is not None:
-                await self.delete_parent_msg_func(delay=1)
-            if self.delete_cmd_msg is not None:
-                self.delete_cmd_msg(delete_after=1)
+            await self._case_two(interaction=interaction)
         else:
-            self.stop()
-            await self.bot_event_wait_func()
-            async with self.database.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT * FROM timeouts WHERE user_id=?", (self.user.id,)
-                )
-                user_timeout: typing.Any = await cursor.fetchall()
-                user_timeout_types: list[int] = []
-                for i in user_timeout:
-                    user_timeout_types.append(i[3])
-
-                max_timeout_types: int = int(max(timeout_types.keys()))
-                if user_timeout == []:
-                    max_user_timeout_type = 0
-                else:
-                    max_user_timeout_type: int = int(max(user_timeout_types))
-
-                if max_user_timeout_type == max_timeout_types:
-                    timeout_time: int = int(timeout_types[str(max_timeout_types)][0])
-                    timeout_description: str = str(
-                        timeout_types[str(max_timeout_types)][1]
-                    )
-                    await interaction.response.send_message(
-                        content=f"Usuário já contém um timeout de {timeout_description}, diretrizes implicam que a próxima medida preventiva seja banimento, deseja aplica-lo?",
-                        view=BanConfirmationView(
-                            user=self.user,
-                            delete_func=self.delete_func,
-                            database=self.database,
-                            bot_event_wait_func=self.bot_event_wait_func,
-                            reason=self.reason,
-                        ),
-                    )
-                else:
-                    max_user_timeout_type += 1
-                    timeout_time: int = int(
-                        timeout_types[str(max_user_timeout_type)][0]
-                    )
-                    timeout_description: str = str(
-                        timeout_types[str(max_user_timeout_type)][1]
-                    )
-
-                    await self.user.timeout_for(timedelta(seconds=timeout_time))  # type: ignore
-                    await interaction.response.send_message(
-                        content=f"aplicando timeout de {timeout_description} ao usuário {self.user.mention}",
-                        ephemeral=True,
-                    )
-                    timeout_embed: discord.Embed = discord.Embed(
-                        title="Aviso de timeout",
-                        description=f"Timeout de {timeout_description} aplicado ao usuário {self.user.mention} pelo moderador {interaction.user.mention}.",
-                        colour=discord.Colour.orange(),
-                        timestamp=datetime.now(),
-                    )
-                    timeout_embed.set_thumbnail(url=self.user.avatar.url)
-
-                    await mod_log_chan.send(embed=timeout_embed)
-                    await interaction.delete_original_response(delay=2)
-                    if self.delete_func is not None:
-                        await self.delete_func(delay=1)
-                    if self.delete_parent_msg_func is not None:
-                        await self.delete_parent_msg_func(delay=1)
-
-                    timeout_type: str = "moderation"
-                    await self.bot_event_wait_func()
-                    async with self.database.cursor() as cursor:
-                        exec_cmd: str = "INSERT OR IGNORE INTO active_timeouts(user_name, user_discriminator, user_id, timeout_description, reason, level, type, unix_date) VALUES(?,?,?,?,?,?,?,?)"
-                        exec_cmd2: str = "INSERT OR IGNORE INTO timeouts_history(user_name, user_discriminator, user_id, timeout_description, reason, level, type, unix_date) VALUES(?,?,?,?,?,?,?,?)"
-                        await cursor.execute(
-                            exec_cmd,
-                            (
-                                self.user.name,
-                                self.user.discriminator,
-                                int(self.user.id),
-                                timeout_description,
-                                str(self.reason),
-                                int(selected_value),
-                                timeout_type,
-                                int(time()),
-                            ),
-                        )
-                        await cursor.execute(
-                            exec_cmd2,
-                            (
-                                self.user.name,
-                                self.user.discriminator,
-                                int(self.user.id),
-                                timeout_description,
-                                str(self.reason),
-                                int(selected_value),
-                                timeout_type,
-                                int(time()),
-                            ),
-                        )
-                    await self.database.commit()
-
-
-# ████████╗██╗███╗   ███╗███████╗ ██████╗ ██╗   ██╗████████╗    ██████╗ ██████╗  ██████╗ ███╗   ███╗██████╗ ████████╗
-# ╚══██╔══╝██║████╗ ████║██╔════╝██╔═══██╗██║   ██║╚══██╔══╝    ██╔══██╗██╔══██╗██╔═══██╗████╗ ████║██╔══██╗╚══██╔══╝
-#    ██║   ██║██╔████╔██║█████╗  ██║   ██║██║   ██║   ██║       ██████╔╝██████╔╝██║   ██║██╔████╔██║██████╔╝   ██║
-#    ██║   ██║██║╚██╔╝██║██╔══╝  ██║   ██║██║   ██║   ██║       ██╔═══╝ ██╔══██╗██║   ██║██║╚██╔╝██║██╔═══╝    ██║
-#    ██║   ██║██║ ╚═╝ ██║███████╗╚██████╔╝╚██████╔╝   ██║       ██║     ██║  ██║╚██████╔╝██║ ╚═╝ ██║██║        ██║
-#    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝
+            await self._case_three(interaction=interaction, mod_log_chan=mod_log_chan)
 
 
 class TimeOutPromptView(discord.ui.View):
     """."""
 
-    def __init__(  # pylint: disable=useless-parent-delegation
+    def __init__(
         self,
         *items: discord.ui.Item,
         timeout: float | None = 180,
@@ -305,18 +543,16 @@ class TimeOutPromptView(discord.ui.View):
         user: discord.User | discord.Member,
         delete_func,
         reason: str,
-        database: Connection,
-        bot_event_wait_func: typing.Any,
+        database: CustomDatabase,
     ) -> None:
         super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
         self.user: discord.User = user
         self.delete_func: typing.Any = delete_func
         self.reason: str = reason
-        self.database: Connection = database
-        self.bot_event_wait_func = bot_event_wait_func
+        self.database: CustomDatabase = database
 
     @discord.ui.button(
-        label="Sim", style=discord.ButtonStyle.primary, custom_id="ybtn_tmout"
+        label="Sim", style=discord.ButtonStyle.primary, custom_id="yes_timeout"
     )
     async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
         """."""
@@ -329,12 +565,11 @@ class TimeOutPromptView(discord.ui.View):
                 delete_parent_msg_func=interaction.delete_original_response,
                 reason=self.reason,
                 database=self.database,
-                bot_event_wait_func=self.bot_event_wait_func,
             ),
         )
 
     @discord.ui.button(
-        label="Não", style=discord.ButtonStyle.danger, custom_id="nbtn_tmout"
+        label="Não", style=discord.ButtonStyle.danger, custom_id="no_timeout"
     )
     async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
         """."""
@@ -344,12 +579,285 @@ class TimeOutPromptView(discord.ui.View):
         await self.delete_func(delay=1)
 
 
-# ██████╗  ██████╗ ██╗     ███████╗    ███████╗███████╗██╗     ███████╗ ██████╗████████╗
-# ██╔══██╗██╔═══██╗██║     ██╔════╝    ██╔════╝██╔════╝██║     ██╔════╝██╔════╝╚══██╔══╝
-# ██████╔╝██║   ██║██║     █████╗      ███████╗█████╗  ██║     █████╗  ██║        ██║
-# ██╔══██╗██║   ██║██║     ██╔══╝      ╚════██║██╔══╝  ██║     ██╔══╝  ██║        ██║
-# ██║  ██║╚██████╔╝███████╗███████╗    ███████║███████╗███████╗███████╗╚██████╗   ██║
-# ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚══════╝╚══════╝╚══════╝╚══════╝ ╚═════╝   ╚═╝
+class TimeoutAcceptView(discord.ui.View):
+    """."""
+
+    def __init__(
+        self,
+        *items: discord.ui.Item,
+        timeout: float | None = 180,
+        disable_on_timeout: bool = False,
+        reason: str,
+        user: discord.User,
+        database: CustomDatabase,
+        guild: discord.Guild,
+        bot: discord.Bot,
+        nivel: int,
+    ) -> None:
+        super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
+
+        self.reason: str = reason
+        self.user: discord.User = user
+        self.database: CustomDatabase = database
+        self.guild: discord.Guild = guild
+        self.bot: discord.Bot = bot
+        self.nivel: int = nivel
+
+    @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
+    async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
+        """."""
+        user_id: int = self.user.id
+        for child in self.children:
+            child.disabled = True
+        await self.message.edit(view=self, delete_after=60)
+
+        if self.user_check(
+            user_id=user_id, context=interaction, guild=self.guild, bot=self.bot
+        ):
+            return
+
+        await interaction.response.send_message(
+            content="Aplicando timeout.", ephemeral=True
+        )
+        timeout_description: str = timeout_types[str(self.nivel)][1]
+        timeout_time: int = timeout_types[str(self.nivel)][0]
+        timeout_type: str = "request"
+
+        mod_log_chan: discord.TextChannel = interaction.guild.get_channel(
+            MOD_LOGS_CHAN_ID
+        )
+
+        parms = (
+            self.user.name,
+            self.user.discriminator,
+            self.user.id,
+            timeout_description,
+            self.reason,
+            self.nivel,
+            timeout_type,
+            int(time()),
+        )
+
+        timeout_user_func(
+            user=self.user,
+            timeout_time=timeout_time,
+            database=self.database,
+            db_parameters=parms,
+        )
+
+        timeout_embed: discord.Embed = discord.Embed(
+            title="Aviso de timeout",
+            description=(
+                f"Timeout de {timeout_description} aplicado ao ",
+                f"usuário {self.user.mention} através de votação da comunidade.",
+            ),
+            colour=discord.Colour.orange(),
+            timestamp=datetime.now(),
+        )
+        timeout_embed.set_thumbnail(url=self.user.avatar.url)
+
+        await mod_log_chan.send(embed=timeout_embed)
+
+    @discord.ui.button(label="Não", style=discord.ButtonStyle.danger)
+    async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
+        """."""
+        await interaction.response.send_message(
+            content="Ignorando request.", ephemeral=True
+        )
+
+    async def on_timeout(self) -> None:
+        """."""
+        for child in self.children:
+            child.disabled = True
+
+        await self.message.delete()
+
+    @classmethod
+    async def user_check(
+        cls,
+        user_id: int,
+        context: discord.Interaction,
+        guild: discord.Guild,
+        bot: discord.Bot,
+    ) -> bool:
+        """."""
+        return_value: bool = False
+        if user_id == guild.owner_id:
+            await context.response.send_message(
+                "Dono do servidor detectado, ação cancelada."
+            )
+            return_value = True
+
+        if user_id == bot.user.id:
+            await context.response.send_message(
+                "FrontlessBot detectado, ação cancelada."
+            )
+            return_value = True
+
+        return return_value
+
+
+class TimoutRequestView(discord.ui.View):
+    """."""
+
+    votes: int = 0
+    users: list[discord.User] = []
+
+    def __init__(
+        self,
+        *items: discord.ui.Item,
+        timeout: float | None = 180,
+        disable_on_timeout: bool = False,
+        reason: str,
+        user: discord.User,
+        database: CustomDatabase,
+        guild: discord.Guild,
+        bot: discord.Bot,
+        nivel: int,
+    ) -> None:
+        super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
+        self.reason: str = reason
+        self.user: discord.User = user
+        self.database: CustomDatabase = database
+        self.guild: discord.Guild = guild
+        self.bot: discord.Bot = bot
+        self.nivel: int = nivel
+        self.interaction_user = None
+        self.interaction_channel = None
+        self.reseter()
+
+    @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
+    async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
+        """."""
+        self.interaction_user: discord.User = interaction.user
+        self.interaction_channel: discord.VoiceChannel | discord.StageChannel | discord.TextChannel | discord.ForumChannel | discord.CategoryChannel | discord.Thread | discord.PartialMessageable = (
+            interaction.channel
+        )
+        if interaction.user in self.users:
+            await interaction.response.send_message(
+                content="Voto já registrado.", ephemeral=True
+            )
+        else:
+            self.incrementer()
+            self.appender(interaction.user)
+            await interaction.response.send_message(
+                content="Voto registrado.",
+                ephemeral=True,
+            )
+
+    @discord.ui.button(label="Não", style=discord.ButtonStyle.danger)
+    async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
+        """."""
+        self.interaction_user: discord.User = interaction.user
+        self.interaction_channel: discord.VoiceChannel | discord.StageChannel | discord.TextChannel | discord.ForumChannel | discord.CategoryChannel | discord.Thread | discord.PartialMessageable = (
+            interaction.channel
+        )
+        if interaction.user in self.users:
+            await interaction.response.send_message(
+                content="Voto já registrado.", ephemeral=True
+            )
+        else:
+            self.decrementer()
+            self.appender(interaction.user)
+            await interaction.response.send_message(
+                content="Voto registrado.",
+                ephemeral=True,
+            )
+
+    async def on_timeout(self) -> None:
+        """."""
+        guild: discord.Guild = self.message.guild
+        requests_channel: discord.TextChannel = guild.get_channel(REQUEST_CHAN_ID)
+        for child in self.children:
+            child.disabled = True
+
+        Logger.info(f"{self.votes = }")
+        if self.votes > 0:
+            color: discord.Colour = discord.Colour.green()
+            desc: str = "Timeout enviado a moderação."
+            embed: discord.Embed = discord.Embed(
+                title="Resultado", color=color, description=desc
+            )
+            if self.interaction_user is not None:
+                accept_desc: str = (
+                    f"Pedido de timeout para o usuário {self.user.mention} requisitado"
+                    f"pelo usuário {self.interaction_user.mention}."
+                )
+            else:
+                accept_desc: str = (
+                    f"Pedido de timeout para o usuário {self.user.mention} recebido."
+                )
+
+            accept_embed: discord.Embed = discord.Embed(
+                title="Pedido de timeout.",
+                color=discord.Colour.orange(),
+                description=accept_desc,
+            )
+
+            accept_embed.add_field(name="Razão", value=self.reason)
+            accept_embed.add_field(
+                name="Tempo", value=timeout_types[str(self.nivel)][1]
+            )
+
+            accept_embed.set_author(name="Frontless Programming", icon_url=BOT_ICON_URL)
+            accept_embed.set_thumbnail(url=self.user.avatar.url)
+            accept_embed.set_footer(
+                text=(
+                    f"Pedido enviado do canal {self.interaction_channel.name}, na categoria {self.interaction_channel.category.name}"
+                ),
+                icon_url=BOT_ICON_URL,
+            )
+
+            await requests_channel.send(
+                embed=accept_embed,
+                view=TimeoutAcceptView(
+                    reason=self.reason,
+                    user=self.user,
+                    database=self.database,
+                    guild=self.guild,
+                    bot=self.bot,
+                    timeout=TWO_DAYS,
+                    nivel=self.nivel,
+                ),
+            )
+        elif self.votes < 0:
+            color: discord.Colour = discord.Colour.red()
+            desc: str = "Timeout descartado."
+
+            embed: discord.Embed = discord.Embed(
+                title="Resultado", color=color, description=desc
+            )
+        else:
+            color: discord.Colour = discord.Colour.dark_grey()
+            desc: str = "votação inconclusiva."
+            embed: discord.Embed = discord.Embed(
+                title="Resultado", color=color, description=desc
+            )
+
+        await self.message.edit(embed=embed, view=self, delete_after=10)
+
+    @classmethod
+    def incrementer(cls) -> None:
+        """."""
+        cls.votes += 1
+        Logger.info(f"{cls.votes = }")
+
+    @classmethod
+    def decrementer(cls) -> None:
+        """."""
+        cls.votes -= 1
+        Logger.info(f"{cls.votes = }")
+
+    @classmethod
+    def appender(cls, user: discord.User) -> None:
+        """."""
+        cls.users.append(user)
+
+    @classmethod
+    def reseter(cls) -> None:
+        """."""
+        cls.votes = 0
+        cls.users.clear()
 
 
 class RoleSelect(discord.ui.Select):
@@ -364,52 +872,67 @@ class RoleSelect(discord.ui.Select):
             custom_id="RoleSelector01",
         )
 
-    async def callback(  # pylint: disable=too-many-locals too-many-branches
-        self, interaction: discord.Interaction
-    ) -> None:
+    def _roles_appender(
+        self, values: list[int], user: discord.Member, guild: discord.Guild
+    ):
+        """."""
+        selected_roles: list[discord.Role] = []
+
+        roles_to_add: list[discord.Role] = []
+        roles_to_remove: list[discord.Role] = []
+        roles_to_add_mentions: list[str] = []
+        roles_to_remove_mentions: list[str] = []
+
+        for i in values:
+            role: discord.Role = guild.get_role(int(i))
+            selected_roles.append(role)
+
+        for _role in selected_roles:
+            if _role not in user.roles:
+                roles_to_add.append(_role)
+                roles_to_add_mentions.append(_role.mention)
+            else:
+                roles_to_remove.append(_role)
+                roles_to_remove_mentions.append(_role.mention)
+
+        roles_add: list[list[discord.Role | str]] = [
+            roles_to_add,
+            roles_to_add_mentions,
+        ]
+        roles_remove: list[list[discord.Role | str]] = [
+            roles_to_remove,
+            roles_to_remove_mentions,
+        ]
+
+        return selected_roles, roles_add, roles_remove
+
+    async def callback(self, interaction: discord.Interaction) -> None:
         """."""
         if self.values[0] != "None":
-            message: discord.Message = interaction.message  # type: ignore
-            guild: discord.Guild = interaction.guild  # type: ignore
-            user: discord.Member = interaction.user  # type: ignore
-            dev_role: discord.Role = guild.get_role(1058049513111167016)  # type: ignore
-            selected_roles: list[discord.Role] = []
-            roles_to_add: list[discord.Role] = []
-            roles_to_remove: list[discord.Role] = []
-            roles_to_add_mentions: list[str] = []
-            roles_to_remove_mentions: list[str] = []
+            message: discord.Message = interaction.message
+            guild: discord.Guild = interaction.guild
+            user: discord.Member = interaction.user
+            dev_role: discord.Role = guild.get_role(DEV_ROLE_ID)
 
-            for i in self.values:
-                role: discord.Role = guild.get_role(int(i))  # type: ignore
-                selected_roles.append(role)
-
-            for _role in selected_roles:
-                if _role not in user.roles:
-                    roles_to_add.append(_role)
-                    roles_to_add_mentions.append(_role.mention)
-                else:
-                    roles_to_remove.append(_role)
-                    roles_to_remove_mentions.append(_role.mention)
+            selected_roles, roles_add, roles_remove = self._roles_appender(
+                values=self.values, user=user, guild=guild
+            )
 
             if dev_role in user.roles:
-                for _role_add in roles_to_add:
+                for _role_add in roles_add[0]:
                     await user.add_roles(_role_add)
 
-                for _role_remove in roles_to_remove:
+                for _role_remove in roles_remove[0]:
                     await user.remove_roles(_role_remove)
 
-                adding_str: str = (
-                    f"adicionando cargos: {', '.join(roles_to_add_mentions)}"
-                )
-                removing_str: str = (
-                    f"removendo cargos: {', '.join(roles_to_remove_mentions)}"
-                )
+                adding_str: str = f"adicionando cargos: {', '.join(roles_add[1])}"
+                removing_str: str = f"removendo cargos: {', '.join(roles_remove[1])}"
                 if len(selected_roles) == 0:
                     message_content: str = "Selecione algum cargo"
                 else:
-                    if len(roles_to_remove_mentions) == 0:
+                    if len(roles_remove[1]) == 0:
                         message_content: str = adding_str.capitalize()
-                    elif len(roles_to_add_mentions) == 0:
+                    elif len(roles_add[1]) == 0:
                         message_content: str = removing_str.capitalize()
                     else:
                         message_content: str = (
@@ -427,7 +950,7 @@ class RoleSelect(discord.ui.Select):
             else:
                 await interaction.edit_original_response(
                     content=message_content,
-                    ephemeral=True,  # type: ignore
+                    ephemeral=True,
                     delete_after=5,
                 )
         else:
@@ -438,15 +961,7 @@ class RoleSelect(discord.ui.Select):
             )
 
 
-# ██████╗ ███████╗██████╗ ███████╗██╗███████╗████████╗███████╗███╗   ██╗████████╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ██╔══██╗██╔════╝██╔══██╗██╔════╝██║██╔════╝╚══██╔══╝██╔════╝████╗  ██║╚══██╔══╝    ██║   ██║██║██╔════╝██║    ██║
-# ██████╔╝█████╗  ██████╔╝███████╗██║███████╗   ██║   █████╗  ██╔██╗ ██║   ██║       ██║   ██║██║█████╗  ██║ █╗ ██║
-# ██╔═══╝ ██╔══╝  ██╔══██╗╚════██║██║╚════██║   ██║   ██╔══╝  ██║╚██╗██║   ██║       ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-# ██║     ███████╗██║  ██║███████║██║███████║   ██║   ███████╗██║ ╚████║   ██║        ╚████╔╝ ██║███████╗╚███╔███╔╝
-# ╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═══╝   ╚═╝         ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
-
-
-class PersistentView(discord.ui.View):
+class PersistentView(discord.ui.View):  #! To refactor
     """."""
 
     def __init__(self, options: list[discord.SelectOption], max_val: int) -> None:
@@ -475,14 +990,6 @@ class ColorSelectorModal(discord.ui.Modal):
         return self.children[0].value
 
 
-#  ██████╗ ██████╗ ██████╗ ███████╗    ██████╗  ██████╗ ██╗     ███████╗    ███╗   ███╗ ██████╗ ██████╗  █████╗ ██╗
-# ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔═══██╗██║     ██╔════╝    ████╗ ████║██╔═══██╗██╔══██╗██╔══██╗██║
-# ██║     ██║   ██║██║  ██║█████╗      ██████╔╝██║   ██║██║     █████╗      ██╔████╔██║██║   ██║██║  ██║███████║██║
-# ██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██║   ██║██║     ██╔══╝      ██║╚██╔╝██║██║   ██║██║  ██║██╔══██║██║
-# ╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║╚██████╔╝███████╗███████╗    ██║ ╚═╝ ██║╚██████╔╝██████╔╝██║  ██║███████╗
-#  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚═╝     ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
-
-
 class ProgrammingRoleDescriptionModal(discord.ui.Modal):
     """."""
 
@@ -505,18 +1012,46 @@ class ProgrammingRoleDescriptionModal(discord.ui.Modal):
         return self.children[0].value
 
 
-# ██████╗  █████╗ ███╗   ██╗     ██████╗ ██████╗ ███╗   ██╗███████╗██╗██████╗ ███╗   ███╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ██╔══██╗██╔══██╗████╗  ██║    ██╔════╝██╔═══██╗████╗  ██║██╔════╝██║██╔══██╗████╗ ████║    ██║   ██║██║██╔════╝██║    ██║
-# ██████╔╝███████║██╔██╗ ██║    ██║     ██║   ██║██╔██╗ ██║█████╗  ██║██████╔╝██╔████╔██║    ██║   ██║██║█████╗  ██║ █╗ ██║
-# ██╔══██╗██╔══██║██║╚██╗██║    ██║     ██║   ██║██║╚██╗██║██╔══╝  ██║██╔══██╗██║╚██╔╝██║    ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-# ██████╔╝██║  ██║██║ ╚████║    ╚██████╗╚██████╔╝██║ ╚████║██║     ██║██║  ██║██║ ╚═╝ ██║     ╚████╔╝ ██║███████╗╚███╔███╔╝
-# ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝     ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝      ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
+class ProgrammingRoleModal(discord.ui.Modal):
+    """."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+        self.add_item(
+            discord.ui.InputText(
+                label="Insira o código HEX da cor.",
+                placeholder="Escreva aqui...",
+            )
+        )
+        self.add_item(
+            discord.ui.InputText(
+                label="Insira a descrição do cargo",
+                placeholder="Escreva aqui...",
+                style=discord.InputTextStyle.long,
+            )
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message(
+            "Role Attributes Collected", ephemeral=True
+        )
+
+    async def get_color(self) -> str:
+        """."""
+        return self.children[0].value
+
+    async def get_description(self) -> str:
+        """."""
+        return self.children[1].value
 
 
 class BanConfirmationView(discord.ui.View):
     """."""
 
-    def __init__(  # pylint: disable=useless-parent-delegation
+    def __init__(
         self,
         *items: discord.ui.Item,
         timeout: float | None = 180,
@@ -524,69 +1059,61 @@ class BanConfirmationView(discord.ui.View):
         user: discord.User,
         delete_func,
         reason: str,
-        database: Connection,
-        bot_event_wait_func: typing.Any,
+        database: CustomDatabase,
     ) -> None:
         super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
         self.user: discord.User = user
         self.delete_func: typing.Any = delete_func
         self.reason: str = reason
-        self.database: Connection = database
-        self.bot_event_wait_func = bot_event_wait_func
+        self.database: CustomDatabase = database
 
     @discord.ui.button(
-        label="Sim", style=discord.ButtonStyle.primary, custom_id="ybtn_tmout"
+        label="Sim", style=discord.ButtonStyle.primary, custom_id="yes_ban_button"
     )
     async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
         """."""
         self.stop()
-        mod_log_chan: discord.TextChannel = interaction.guild.get_channel(
-            mod_logs_chan_id
+        guild: discord.Guild = interaction.guild
+        mod_usr: discord.User = interaction.user
+        target_usr: discord.User = self.user
+        mod_log_chan: discord.TextChannel = guild.get_channel(MOD_LOGS_CHAN_ID)
+        epoch_date: int = int(time())
+        params: tuple = (
+            str(target_usr.name),
+            str(target_usr.discriminator),
+            int(target_usr.id),
+            self.reason,
+            epoch_date,
+        )
+
+        desc: str = (
+            "Banimento aplicado ao usuário "
+            f"{target_usr.mention} "
+            f"pelo moderador {mod_usr.mention}."
         )
         timeout_embed: discord.Embed = discord.Embed(
             title="Aviso de banimento",
-            description=f"Banimento aplicado ao usuário {self.user.mention} pelo moderador {interaction.user.mention}.",
+            description=desc,
             colour=discord.Colour.red(),
             timestamp=datetime.now(),
         )
-        timeout_embed.set_thumbnail(url=self.user.avatar.url)
-
+        timeout_embed.set_thumbnail(url=target_usr.avatar.url)
         await mod_log_chan.send(embed=timeout_embed)
         await interaction.response.send_message(
-            content=f"Banindo {self.user.mention}.", ephemeral=True
+            content=f"Banindo {target_usr.mention}.", ephemeral=True
         )
-        epoch_date: int = int(time())
-        await self.bot_event_wait_func()
-        async with self.database.cursor() as cursor:
-            add_act_ban_command: str = "INSERT OR IGNORE INTO active_bans(user_name, user_discriminator, user_id, reason, unix_date) VALUES(?,?,?,?,?)"
-            add_hist_ban_command: str = "INSERT OR IGNORE INTO ban_history(user_name, user_discriminator, user_id, reason, unix_date) VALUES(?,?,?,?,?)"
-            await cursor.execute(
-                add_act_ban_command,
-                (
-                    str(self.user.name),
-                    str(self.user.discriminator),
-                    int(self.user.id),
-                    self.reason,
-                    epoch_date,
-                ),
-            )
-            await cursor.execute(
-                add_hist_ban_command,
-                (
-                    str(self.user.name),
-                    str(self.user.discriminator),
-                    int(self.user.id),
-                    self.reason,
-                    epoch_date,
-                ),
-            )
-        await self.database.commit()
-        await self.user.ban(reason=self.reason)
+        await ban_user_func(
+            user=target_usr,
+            reason=self.reason,
+            database=self.database,
+            db_parameters=params,
+        )
+
         await interaction.delete_original_response(delay=3)
         await self.delete_func(delay=1)
 
     @discord.ui.button(
-        label="Não", style=discord.ButtonStyle.danger, custom_id="nbtn_tmout"
+        label="Não", style=discord.ButtonStyle.danger, custom_id="no_ban_button"
     )
     async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
         """."""
@@ -596,26 +1123,17 @@ class BanConfirmationView(discord.ui.View):
         await self.delete_func(delay=1)
 
 
-# ██╗   ██╗███╗   ██╗██████╗  █████╗ ███╗   ██╗    ██████╗ ██████╗  ██████╗ ██████╗ ██████╗  ██████╗ ██╗    ██╗███╗   ██╗
-# ██║   ██║████╗  ██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔═══██╗██║    ██║████╗  ██║
-# ██║   ██║██╔██╗ ██║██████╔╝███████║██╔██╗ ██║    ██║  ██║██████╔╝██║   ██║██████╔╝██║  ██║██║   ██║██║ █╗ ██║██╔██╗ ██║
-# ██║   ██║██║╚██╗██║██╔══██╗██╔══██║██║╚██╗██║    ██║  ██║██╔══██╗██║   ██║██╔═══╝ ██║  ██║██║   ██║██║███╗██║██║╚██╗██║
-# ╚██████╔╝██║ ╚████║██████╔╝██║  ██║██║ ╚████║    ██████╔╝██║  ██║╚██████╔╝██║     ██████╔╝╚██████╔╝╚███╔███╔╝██║ ╚████║
-#  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚═╝  ╚═══╝
-
-
-class UserUnbanDropdown(discord.ui.Select):
+class UserUnbanDropdown(discord.ui.Select):  #! To refactor
     """."""
 
     def __init__(
         self,
         options: list[discord.SelectOption],
         max_val: int,
-        delete_func,
+        delete_func: typing.Callable,
         reason: str,
-        database: Connection,
-        bot_event_wait_func: typing.Any,
-        bans: typing.Any,
+        bans: list[discord.User],
+        database: CustomDatabase,
     ) -> None:
         super().__init__(
             placeholder="Selecione o usuário.",
@@ -623,96 +1141,46 @@ class UserUnbanDropdown(discord.ui.Select):
             min_values=0,
             options=options,
         )
-        self.delete_func: typing.Any = delete_func
+        self.delete_func: typing.Callable = delete_func
         self.reason: str = reason
-        self.database: Connection = database
-        self.bot_event_wait_func: typing.Any = bot_event_wait_func
         self.bans: list[discord.User] = bans
+        self.database: CustomDatabase = database
 
-    async def callback(  # pylint: disable=too-many-locals too-many-branches
-        self, interaction: discord.Interaction
-    ) -> None:
+    async def callback(self, interaction: discord.Interaction) -> None:
         """."""
         welcome_channel: discord.TextChannel = interaction.guild.get_channel(
-            1056710866147483760
+            WELCOME_CHAN_ID
         )
         invite: discord.Invite = await welcome_channel.create_invite(
-            max_uses=1, max_age=172800
+            max_uses=1, max_age=TWO_DAYS
         )
         for i in self.bans:
             if int(self.values[0]) == i.id:
                 unban_user: discord.User = i
 
         mod_log_chan: discord.TextChannel = interaction.guild.get_channel(
-            mod_logs_chan_id
+            MOD_LOGS_CHAN_ID
         )
-        timeout_embed: discord.Embed = discord.Embed(
+        revoke_embed: discord.Embed = discord.Embed(
             title="Aviso da moderação",
             description=f"Banimento do usuário {unban_user.mention} revogado pelo moderador {interaction.user.mention}.",
-            colour=discord.Colour.darker_grey(),
+            colour=discord.Colour.dark_grey(),
             timestamp=datetime.now(),
         )
-        timeout_embed.set_thumbnail(url=unban_user.avatar.url)
+        revoke_embed.set_thumbnail(url=unban_user.avatar.url)
 
-        await mod_log_chan.send(embed=timeout_embed)
+        await mod_log_chan.send(embed=revoke_embed)
         await interaction.guild.unban(user=unban_user)
         await interaction.response.send_message(
             f"Ban do usuário {unban_user.mention} revogado."
         )
         await unban_user.send(
-            f"Seu ban no Frontless Programming foi revogado, para voltar ao servidor acesse o este link: {invite.url}, ele ficará disponível por 48 horas."
-        )
-        await self.bot_event_wait_func()
-        async with self.database.cursor() as cursor:
-            del_cmd: str = "DELETE FROM active_bans WHERE user_id=?"
-            await cursor.execute(del_cmd, (unban_user.id,))
-        await self.database.commit()
-
-
-# ██╗   ██╗███╗   ██╗██████╗  █████╗ ███╗   ██╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ██║   ██║████╗  ██║██╔══██╗██╔══██╗████╗  ██║    ██║   ██║██║██╔════╝██║    ██║
-# ██║   ██║██╔██╗ ██║██████╔╝███████║██╔██╗ ██║    ██║   ██║██║█████╗  ██║ █╗ ██║
-# ██║   ██║██║╚██╗██║██╔══██╗██╔══██║██║╚██╗██║    ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-# ╚██████╔╝██║ ╚████║██████╔╝██║  ██║██║ ╚████║     ╚████╔╝ ██║███████╗╚███╔███╔╝
-#  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝      ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
-
-
-class UserUnbanView(discord.ui.View):
-    """."""
-
-    def __init__(
-        self,
-        *items: discord.ui.Item,
-        timeout: float | None = 180,
-        disable_on_timeout: bool = False,
-        delete_func,
-        reason: str,
-        database: Connection,
-        bot_event_wait_func: typing.Any,
-        options: list,
-        max_val: int,
-        bans: list[discord.User],
-    ) -> None:
-        super().__init__(timeout=None)
-        self.add_item(
-            UserUnbanDropdown(
-                max_val=max_val,
-                options=options,
-                database=database,
-                bot_event_wait_func=bot_event_wait_func,
-                delete_func=delete_func,
-                reason=reason,
-                bans=bans,
-            )
+            f"Seu ban na {interaction.guild.name} foi revogado, para voltar ao servidor acesse este link: {invite.url}, ele ficará disponível por 48 horas."
         )
 
-
-# ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗     █████╗  ██████╗ ██████╗███████╗██████╗ ████████╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ██║    ██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔══██╗╚══██╔══╝    ██║   ██║██║██╔════╝██║    ██║
-# ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║    ███████║██║     ██║     █████╗  ██████╔╝   ██║       ██║   ██║██║█████╗  ██║ █╗ ██║
-# ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║    ██╔══██║██║     ██║     ██╔══╝  ██╔═══╝    ██║       ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-# ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║    ██║  ██║╚██████╗╚██████╗███████╗██║        ██║        ╚████╔╝ ██║███████╗╚███╔███╔╝
-#  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝╚══════╝╚═╝        ╚═╝         ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
+        await self.database.delete_where(
+            table="active_bans", search_key="user_id", parameters=unban_user.id
+        )
 
 
 class WarnAcceptView(discord.ui.View):
@@ -725,17 +1193,15 @@ class WarnAcceptView(discord.ui.View):
         disable_on_timeout: bool = False,
         reason: str,
         user: discord.User,
-        database: Connection,
+        database: CustomDatabase,
         guild: discord.Guild,
-        wait_database_function,
         bot: discord.Bot,
     ) -> None:
         super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
         self.reason: str = reason
         self.user: discord.User = user
-        self.database: Connection = database
+        self.database: CustomDatabase = database
         self.guild: discord.Guild = guild
-        self.wait_database_function = wait_database_function
         self.bot: discord.Bot = bot
 
     @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
@@ -745,70 +1211,37 @@ class WarnAcceptView(discord.ui.View):
         for child in self.children:
             child.disabled = True
         await self.message.edit(view=self, delete_after=60)
-
-        if user_id == self.guild.owner_id:  # type: ignore
-            await interaction.response.send_message(
-                content="Dono do servidor detectado, ação cancelada.", ephemeral=True
-            )
-            return
-
-        if user_id == self.bot.user.id:
-            await interaction.response.send_message(
-                content="FrontlessBot detectado, ação cancelada.", ephemeral=True
-            )
+        if await self.user_check(
+            user_id=int(user_id), context=interaction.response, bot=self.bot
+        ):
             return
 
         await interaction.response.send_message(
             content="Aplicando aviso.", ephemeral=True
         )
+        parms: tuple = (
+            self.user.name,
+            self.user.discriminator,
+            int(self.user.id),
+            self.reason,
+            "request",
+            int(time()),
+        )
 
-        await self.wait_database_function()
-        async with self.database.cursor() as cursor:
-            await cursor.execute(
-                "SELECT * FROM active_warns WHERE user_id=?", (user_id,)
-            )
-            user_warn: typing.Any = await cursor.fetchall()
-        if not user_warn:
-            print("user not found in warn table")
-            warn_type: str = "request"
-            await self.wait_database_function()
-            async with self.database.cursor() as cursor:
-                exec_cmd: str = "INSERT OR IGNORE INTO active_warns(user_name, user_discriminator, user_id, reason, type, unix_date) VALUES(?,?,?,?,?,?)"
-                exec_cmd2: str = "INSERT OR IGNORE INTO warns_history(user_name, user_discriminator, user_id, reason, type, unix_date) VALUES(?,?,?,?,?,?)"
-                await cursor.execute(
-                    exec_cmd,
-                    (
-                        self.user.name,
-                        self.user.discriminator,
-                        user_id,
-                        self.reason,
-                        warn_type,
-                        int(time()),
-                    ),
-                )
-                await cursor.execute(
-                    exec_cmd2,
-                    (
-                        self.user.name,
-                        self.user.discriminator,
-                        user_id,
-                        self.reason,
-                        warn_type,
-                        int(time()),
-                    ),
-                )
-            await self.database.commit()
+        if await warn_user_func(database=self.database, db_parameters=parms):
             mod_log_chan: discord.TextChannel = interaction.guild.get_channel(
-                mod_logs_chan_id
+                MOD_LOGS_CHAN_ID
             )
             timeout_embed: discord.Embed = discord.Embed(
                 title="Aviso da moderação",
-                description=f"{self.user.mention}, este é um aviso da moderação, a proxima sinalização será provida de um timeout.",
+                description=(
+                    f"{self.user.mention}, este é um aviso da moderação, "
+                    "a proxima sinalização será provida de um timeout."
+                ),
                 colour=discord.Colour.yellow(),
                 timestamp=datetime.now(),
             )
             timeout_embed.set_thumbnail(url=self.user.avatar.url)
-
             await mod_log_chan.send(embed=timeout_embed)
             await interaction.response.send_message(
                 content="Aplicando aviso ao usuário", ephemeral=True
@@ -833,13 +1266,21 @@ class WarnAcceptView(discord.ui.View):
 
         await self.message.delete()
 
+    @classmethod
+    async def user_check(
+        cls, user_id: int, context: discord.ApplicationContext, bot: discord.Bot
+    ) -> bool:
+        """."""
+        return_value: bool = False
+        if user_id == context.guild.owner_id:
+            await context.send_message("Dono do servidor detectado, ação cancelada.")
+            return_value = True
 
-# ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗    ██████╗ ███████╗ ██████╗ ██╗   ██╗███████╗███████╗████████╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ██║    ██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔════╝██╔═══██╗██║   ██║██╔════╝██╔════╝╚══██╔══╝    ██║   ██║██║██╔════╝██║    ██║
-# ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║    ██████╔╝█████╗  ██║   ██║██║   ██║█████╗  ███████╗   ██║       ██║   ██║██║█████╗  ██║ █╗ ██║
-# ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║    ██╔══██╗██╔══╝  ██║▄▄ ██║██║   ██║██╔══╝  ╚════██║   ██║       ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-# ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║    ██║  ██║███████╗╚██████╔╝╚██████╔╝███████╗███████║   ██║        ╚████╔╝ ██║███████╗╚███╔███╔╝
-#  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝╚══════╝ ╚══▀▀═╝  ╚═════╝ ╚══════╝╚══════╝   ╚═╝         ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
+        if user_id == bot.user.id:
+            await context.send_message("FrontlessBot detectado, ação cancelada.")
+            return_value = True
+
+        return return_value
 
 
 class WarnRequestView(discord.ui.View):
@@ -855,29 +1296,31 @@ class WarnRequestView(discord.ui.View):
         disable_on_timeout: bool = False,
         reason: str,
         user: discord.User,
-        database: Connection,
-        guild: discord.Guild,
-        wait_database_function,
+        database: CustomDatabase,
         bot: discord.Bot,
     ) -> None:
         super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
         self.reason: str = reason
         self.user: discord.User = user
-        self.database: Connection = database
-        self.guild: discord.Guild = guild
-        self.wait_database_function = wait_database_function
+        self.database: CustomDatabase = database
         self.bot: discord.Bot = bot
-        self.interaction_user = None
-        self.interaction_channel = None
         self.reseter()
 
     @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
     async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
         """."""
-        self.interaction_user: discord.User = interaction.user
-        self.interaction_channel: discord.VoiceChannel | discord.StageChannel | discord.TextChannel | discord.ForumChannel | discord.CategoryChannel | discord.Thread | discord.PartialMessageable = (
-            interaction.channel
+        self.interaction_user: discord.User = (  # pylint: disable=attribute-defined-outside-init
+            interaction.user
         )
+        self.interaction_channel: typing.Union[  # pylint: disable=attribute-defined-outside-init
+            discord.VoiceChannel,
+            discord.StageChannel,
+            discord.TextChannel,
+            discord.ForumChannel,
+            discord.CategoryChannel,
+            discord.Thread,
+            discord.PartialMessageable,
+        ] = interaction.channel
         if interaction.user in self.users:
             await interaction.response.send_message(
                 content="Voto já registrado.", ephemeral=True
@@ -893,10 +1336,18 @@ class WarnRequestView(discord.ui.View):
     @discord.ui.button(label="Não", style=discord.ButtonStyle.danger)
     async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
         """."""
-        self.interaction_user: discord.User = interaction.user
-        self.interaction_channel: discord.VoiceChannel | discord.StageChannel | discord.TextChannel | discord.ForumChannel | discord.CategoryChannel | discord.Thread | discord.PartialMessageable = (
-            interaction.channel
+        self.interaction_user: discord.User = (  # pylint: disable=attribute-defined-outside-init
+            interaction.user
         )
+        self.interaction_channel: typing.Union[  # pylint: disable=attribute-defined-outside-init
+            discord.VoiceChannel,
+            discord.StageChannel,
+            discord.TextChannel,
+            discord.ForumChannel,
+            discord.CategoryChannel,
+            discord.Thread,
+            discord.PartialMessageable,
+        ] = interaction.channel
         if interaction.user in self.users:
             await interaction.response.send_message(
                 content="Voto já registrado.", ephemeral=True
@@ -912,11 +1363,11 @@ class WarnRequestView(discord.ui.View):
     async def on_timeout(self) -> None:
         """."""
         guild: discord.Guild = self.message.guild
-        requests_channel: discord.TextChannel = guild.get_channel(1059280455263850577)
+        requests_channel: discord.TextChannel = guild.get_channel(REQUEST_CHAN_ID)
         for child in self.children:
             child.disabled = True
 
-        print(f"{self.votes = }")
+        Logger.info(f"{self.votes = }")
         if self.votes > 0:
             color: discord.Colour = discord.Colour.green()
             desc: str = "Aviso enviado a moderação."
@@ -924,7 +1375,10 @@ class WarnRequestView(discord.ui.View):
                 title="Resultado", color=color, description=desc
             )
             if self.interaction_user is not None:
-                accept_desc: str = f"Pedido de aviso para o usuário {self.user.mention} requisitado pelo usuário {self.interaction_user.mention}."
+                accept_desc: str = (
+                    f"Pedido de aviso para o usuário {self.user.mention}"
+                    f" requisitado pelo usuário {self.interaction_user.mention}."
+                )
             else:
                 accept_desc: str = (
                     f"Pedido de aviso para o usuário {self.user.mention} recebido."
@@ -938,35 +1392,35 @@ class WarnRequestView(discord.ui.View):
 
             accept_embed.add_field(name="Razão", value=self.reason)
 
-            accept_embed.set_author(name="Frontless Programming", icon_url=bot_icon_url)
+            accept_embed.set_author(name="Frontless Programming", icon_url=BOT_ICON_URL)
             accept_embed.set_thumbnail(url=self.user.avatar.url)
             accept_embed.set_footer(
                 text=(
-                    f"Pedido enviado do canal {self.interaction_channel.name}, na categoria {self.interaction_channel.category.name}"
+                    f"Pedido enviado do canal {self.interaction_channel.name}, "
+                    f"na categoria {self.interaction_channel.category.name}"
                 ),
-                icon_url=bot_icon_url,
+                icon_url=BOT_ICON_URL,
             )
 
             await requests_channel.send(
                 embed=accept_embed,
                 view=WarnAcceptView(
-                    reason=self.reason,
-                    user=self.user,
+                    timeout=TWO_DAYS,
                     database=self.database,
-                    guild=self.guild,
-                    wait_database_function=self.wait_database_function,
+                    reason=self.reason,
+                    guild=guild,
+                    user=self.user,
                     bot=self.bot,
-                    timeout=172800,
                 ),
             )
-        if self.votes < 0:
+        elif self.votes < 0:
             color: discord.Colour = discord.Colour.red()
             desc: str = "Aviso descartado."
 
             embed: discord.Embed = discord.Embed(
                 title="Resultado", color=color, description=desc
             )
-        elif self.votes == 0:
+        else:
             color: discord.Colour = discord.Colour.dark_grey()
             desc: str = "votação inconclusiva."
             embed: discord.Embed = discord.Embed(
@@ -979,13 +1433,13 @@ class WarnRequestView(discord.ui.View):
     def incrementer(cls) -> None:
         """."""
         cls.votes += 1
-        print(f"{cls.votes = }")
+        Logger.info(f"{cls.votes = }")
 
     @classmethod
     def decrementer(cls) -> None:
         """."""
         cls.votes -= 1
-        print(f"{cls.votes = }")
+        Logger.info(f"{cls.votes = }")
 
     @classmethod
     def appender(cls, user: discord.User) -> None:
@@ -999,15 +1453,7 @@ class WarnRequestView(discord.ui.View):
         cls.users.clear()
 
 
-# ████████╗██╗███╗   ███╗███████╗ ██████╗ ██╗   ██╗████████╗     █████╗  ██████╗██████╗ ████████╗    ██╗   ██╗██╗███████╗██╗    ██╗
-# ╚══██╔══╝██║████╗ ████║██╔════╝██╔═══██╗██║   ██║╚══██╔══╝    ██╔══██╗██╔════╝██╔══██╗╚══██╔══╝    ██║   ██║██║██╔════╝██║    ██║
-#    ██║   ██║██╔████╔██║█████╗  ██║   ██║██║   ██║   ██║       ███████║██║     ██████╔╝   ██║       ██║   ██║██║█████╗  ██║ █╗ ██║
-#    ██║   ██║██║╚██╔╝██║██╔══╝  ██║   ██║██║   ██║   ██║       ██╔══██║██║     ██╔═══╝    ██║       ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-#    ██║   ██║██║ ╚═╝ ██║███████╗╚██████╔╝╚██████╔╝   ██║       ██║  ██║╚██████╗██║        ██║██╗     ╚████╔╝ ██║███████╗╚███╔███╔╝
-#    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝  ╚═╝ ╚═════╝╚═╝        ╚═╝╚═╝      ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
-
-
-class TimeoutAcceptView(discord.ui.View):
+class UserUnbanView(discord.ui.View):
     """."""
 
     def __init__(
@@ -1015,320 +1461,43 @@ class TimeoutAcceptView(discord.ui.View):
         *items: discord.ui.Item,
         timeout: float | None = 180,
         disable_on_timeout: bool = False,
+        delete_func,
         reason: str,
-        user: discord.User,
-        database: Connection,
-        guild: discord.Guild,
-        wait_database_function,
-        bot: discord.Bot,
-        nivel: int,
+        database: CustomDatabase,
+        options: list,
+        max_val: int,
+        bans: list[discord.User],
     ) -> None:
-        super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
-        self.reason: str = reason
-        self.user: discord.User = user
-        self.database: Connection = database
-        self.guild: discord.Guild = guild
-        self.wait_database_function = wait_database_function
-        self.bot: discord.Bot = bot
-        self.nivel: int = nivel
+        super().__init__(timeout=None)
 
-    @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
-    async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
-        """."""
-        user_id: int = self.user.id
-        for child in self.children:
-            child.disabled = True
-        await self.message.edit(view=self, delete_after=60)
-
-        if user_id == self.guild.owner_id:  # type: ignore
-            await interaction.response.send_message(
-                content="Dono do servidor detectado, ação cancelada.", ephemeral=True
+        self.add_item(
+            UserUnbanDropdown(
+                max_val=max_val,
+                options=options,
+                database=database,
+                delete_func=delete_func,
+                reason=reason,
+                bans=bans,
             )
-            return
-
-        if user_id == self.bot.user.id:
-            await interaction.response.send_message(
-                content="FrontlessBot detectado, ação cancelada.", ephemeral=True
-            )
-            return
-
-        await interaction.response.send_message(
-            content="Aplicando timeout.", ephemeral=True
-        )
-        timeout_description: str = timeout_types[str(self.nivel)][1]
-        timeout_time: int = timeout_types[str(self.nivel)][0]
-        timeout_type: str = "request"
-        await self.user.timeout_for(timedelta(seconds=timeout_time))
-        await self.wait_database_function()
-        async with self.database.cursor() as cursor:
-            exec_cmd: str = "INSERT OR IGNORE INTO active_timeouts(user_name, user_discriminator, user_id, timeout_description, reason, level, type, unix_date) VALUES(?,?,?,?,?,?,?,?)"
-            exec_cmd2: str = "INSERT OR IGNORE INTO timeouts_history(user_name, user_discriminator, user_id, timeout_description, reason, level, type, unix_date) VALUES(?,?,?,?,?,?,?,?)"
-            await cursor.execute(
-                exec_cmd,
-                (
-                    self.user.name,
-                    self.user.discriminator,
-                    int(self.user.id),
-                    timeout_description,
-                    str(self.reason),
-                    int(self.nivel),
-                    timeout_type,
-                    int(time()),
-                ),
-            )
-            await cursor.execute(
-                exec_cmd2,
-                (
-                    self.user.name,
-                    self.user.discriminator,
-                    int(self.user.id),
-                    timeout_description,
-                    str(self.reason),
-                    int(self.nivel),
-                    timeout_type,
-                    int(time()),
-                ),
-            )
-        await self.database.commit()
-        mod_log_chan: discord.TextChannel = interaction.guild.get_channel(
-            mod_logs_chan_id
-        )
-        timeout_embed: discord.Embed = discord.Embed(
-            title="Aviso de timeout",
-            description=f"Timeout de {timeout_description} aplicado ao usuário {self.user.mention} através de votação da comunidade.",
-            colour=discord.Colour.orange(),
-            timestamp=datetime.now(),
-        )
-        timeout_embed.set_thumbnail(url=self.user.avatar.url)
-
-        await mod_log_chan.send(embed=timeout_embed)
-
-    @discord.ui.button(label="Não", style=discord.ButtonStyle.danger)
-    async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
-        """."""
-        await interaction.response.send_message(
-            content="Ignorando request.", ephemeral=True
         )
 
-    async def on_timeout(self) -> None:
-        """."""
-        for child in self.children:
-            child.disabled = True
 
-        await self.message.delete()
-
-
-# ████████╗██╗███╗   ███╗███████╗ ██████╗ ██╗   ██╗████████╗    ██████╗ ███████╗ ██████╗        ██╗   ██╗██╗███████╗██╗    ██╗
-# ╚══██╔══╝██║████╗ ████║██╔════╝██╔═══██╗██║   ██║╚══██╔══╝    ██╔══██╗██╔════╝██╔═══██╗       ██║   ██║██║██╔════╝██║    ██║
-#    ██║   ██║██╔████╔██║█████╗  ██║   ██║██║   ██║   ██║       ██████╔╝█████╗  ██║   ██║       ██║   ██║██║█████╗  ██║ █╗ ██║
-#    ██║   ██║██║╚██╔╝██║██╔══╝  ██║   ██║██║   ██║   ██║       ██╔══██╗██╔══╝  ██║▄▄ ██║       ╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
-#    ██║   ██║██║ ╚═╝ ██║███████╗╚██████╔╝╚██████╔╝   ██║       ██║  ██║███████╗╚██████╔╝██╗     ╚████╔╝ ██║███████╗╚███╔███╔╝
-#    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝  ╚═╝╚══════╝ ╚══▀▀═╝ ╚═╝      ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
-
-
-class TimoutRequestView(discord.ui.View):
-    """."""
-
-    votes: int = 0
-    users: list[discord.User] = []
-
-    def __init__(
-        self,
-        *items: discord.ui.Item,
-        timeout: float | None = 180,
-        disable_on_timeout: bool = False,
-        reason: str,
-        user: discord.User,
-        database: Connection,
-        guild: discord.Guild,
-        wait_database_function,
-        bot: discord.Bot,
-        nivel: int,
-    ) -> None:
-        super().__init__(*items, timeout=timeout, disable_on_timeout=disable_on_timeout)
-        self.reason: str = reason
-        self.user: discord.User = user
-        self.database: Connection = database
-        self.guild: discord.Guild = guild
-        self.wait_database_function = wait_database_function
-        self.bot: discord.Bot = bot
-        self.interaction_user = None
-        self.interaction_channel = None
-        self.nivel: int = nivel
-        self.reseter()
-
-    @discord.ui.button(label="Sim", style=discord.ButtonStyle.success)
-    async def yes_button_callback(self, _, interaction: discord.Interaction) -> None:
-        """."""
-        self.interaction_user: discord.User = interaction.user
-        self.interaction_channel: discord.VoiceChannel | discord.StageChannel | discord.TextChannel | discord.ForumChannel | discord.CategoryChannel | discord.Thread | discord.PartialMessageable = (
-            interaction.channel
-        )
-        if interaction.user in self.users:
-            await interaction.response.send_message(
-                content="Voto já registrado.", ephemeral=True
-            )
-        else:
-            self.incrementer()
-            self.appender(interaction.user)
-            await interaction.response.send_message(
-                content="Voto registrado.",
-                ephemeral=True,
-            )
-
-    @discord.ui.button(label="Não", style=discord.ButtonStyle.danger)
-    async def no_button_callback(self, _, interaction: discord.Interaction) -> None:
-        """."""
-        self.interaction_user: discord.User = interaction.user
-        self.interaction_channel: discord.VoiceChannel | discord.StageChannel | discord.TextChannel | discord.ForumChannel | discord.CategoryChannel | discord.Thread | discord.PartialMessageable = (
-            interaction.channel
-        )
-        if interaction.user in self.users:
-            await interaction.response.send_message(
-                content="Voto já registrado.", ephemeral=True
-            )
-        else:
-            self.decrementer()
-            self.appender(interaction.user)
-            await interaction.response.send_message(
-                content="Voto registrado.",
-                ephemeral=True,
-            )
-
-    async def on_timeout(self) -> None:
-        """."""
-        guild: discord.Guild = self.message.guild
-        requests_channel: discord.TextChannel = guild.get_channel(1059280455263850577)
-        for child in self.children:
-            child.disabled = True
-
-        print(f"{self.votes = }")
-        if self.votes > 0:
-            color: discord.Colour = discord.Colour.green()
-            desc: str = "Timeout enviado a moderação."
-            embed: discord.Embed = discord.Embed(
-                title="Resultado", color=color, description=desc
-            )
-            if self.interaction_user is not None:
-                accept_desc: str = f"Pedido de timeout para o usuário {self.user.mention} requisitado pelo usuário {self.interaction_user.mention}."
-            else:
-                accept_desc: str = (
-                    f"Pedido de timeout para o usuário {self.user.mention} recebido."
-                )
-
-            accept_embed: discord.Embed = discord.Embed(
-                title="Pedido de timeout.",
-                color=discord.Colour.orange(),
-                description=accept_desc,
-            )
-
-            accept_embed.add_field(name="Razão", value=self.reason)
-            accept_embed.add_field(
-                name="Tempo", value=timeout_types[str(self.nivel)][1]
-            )
-
-            accept_embed.set_author(name="Frontless Programming", icon_url=bot_icon_url)
-            accept_embed.set_thumbnail(url=self.user.avatar.url)
-            accept_embed.set_footer(
-                text=(
-                    f"Pedido enviado do canal {self.interaction_channel.name}, na categoria {self.interaction_channel.category.name}"
-                ),
-                icon_url=bot_icon_url,
-            )
-
-            await requests_channel.send(
-                embed=accept_embed,
-                view=TimeoutAcceptView(
-                    reason=self.reason,
-                    user=self.user,
-                    database=self.database,
-                    guild=self.guild,
-                    wait_database_function=self.wait_database_function,
-                    bot=self.bot,
-                    timeout=172800,
-                    nivel=self.nivel,
-                ),
-            )
-        if self.votes < 0:
-            color: discord.Colour = discord.Colour.red()
-            desc: str = "Timeout descartado."
-
-            embed: discord.Embed = discord.Embed(
-                title="Resultado", color=color, description=desc
-            )
-        elif self.votes == 0:
-            color: discord.Colour = discord.Colour.dark_grey()
-            desc: str = "votação inconclusiva."
-            embed: discord.Embed = discord.Embed(
-                title="Resultado", color=color, description=desc
-            )
-
-        await self.message.edit(embed=embed, view=self, delete_after=10)
-
-    @classmethod
-    def incrementer(cls) -> None:
-        """."""
-        cls.votes += 1
-        print(f"{cls.votes = }")
-
-    @classmethod
-    def decrementer(cls) -> None:
-        """."""
-        cls.votes -= 1
-        print(f"{cls.votes = }")
-
-    @classmethod
-    def appender(cls, user: discord.User) -> None:
-        """."""
-        cls.users.append(user)
-
-    @classmethod
-    def reseter(cls) -> None:
-        """."""
-        cls.votes = 0
-        cls.users.clear()
-
-
-# ██████████████████████████████████████████████████████████████████████████████████████████████████████████╗
-# ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-
-#  ██████╗  ██████╗   ██████╗
-# ██╔════╝ ██╔═══██╗ ██╔════╝
-# ██║      ██║   ██║ ██║  ███╗
-# ██║      ██║   ██║ ██║   ██║
-# ╚██████╗ ╚██████╔╝ ╚██████╔╝
-#  ╚═════╝  ╚═════╝   ╚═════╝
-
-# ██████████████████████████████████████████████████████████████████████████████████████████████████████████╗
-# ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+######################################################
+######################################################
 
 
 class Adminstrative(commands.Cog):
     """Cog used to manage all Administrative commands"""
 
-    # pylint: disable=line-too-long
-
     def __init__(self, bot) -> None:
         self.bot = bot
         self.bot.persistent_views_added = False
 
-    # ██████╗ ██╗   ██╗██╗     ███████╗     ██████╗███╗   ███╗██████╗
-    # ██╔══██╗██║   ██║██║     ██╔════╝    ██╔════╝████╗ ████║██╔══██╗
-    # ██████╔╝██║   ██║██║     █████╗      ██║     ██╔████╔██║██║  ██║
-    # ██╔══██╗██║   ██║██║     ██╔══╝      ██║     ██║╚██╔╝██║██║  ██║
-    # ██║  ██║╚██████╔╝███████╗███████╗    ╚██████╗██║ ╚═╝ ██║██████╔╝
-    # ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝     ╚═════╝╚═╝     ╚═╝╚═════╝
-
     @commands.slash_command(name="regras", description="Exibe as regras")
-    @commands.has_role(1056755317419028560)
-    async def regras(self, ctx: discord.ApplicationContext) -> None:
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def regras(self, ctx: discord.ApplicationContext) -> None:  #! To refactor
         """Função que exibe as regras do servidor"""
-
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            await cursor.execute("SELECT * FROM rules")
-            rules: list[tuple[str, str]] = await cursor.fetchall()
-
+        rules: list[tuple[str, str]] = await self.bot.db.fetch(table="rules")
         embed: discord.Embed = discord.Embed(
             title="Regras",
             description="Estas são as regras do servidor.",
@@ -1337,32 +1506,26 @@ class Adminstrative(commands.Cog):
         )
         for _rule in rules:
             embed.add_field(name=_rule[0], value=_rule[1], inline=False)
-        embed.set_author(name="Frontless Programming", icon_url=bot_icon_url)
-        embed.set_thumbnail(url=bot_icon_url)
-        embed.set_footer(text="Feito pela comunidade com ❤️.", icon_url=bot_icon_url)
+        embed.set_author(name="Frontless Programming", icon_url=BOT_ICON_URL)
+        embed.set_thumbnail(url=BOT_ICON_URL)
+        embed.set_footer(text="Feito pela comunidade com ❤️.", icon_url=BOT_ICON_URL)
 
         await ctx.respond(embed=embed)
-
-    # ██╗      █████╗ ███╗   ██╗ ██████╗     ███████╗███████╗██╗     ███████╗ ██████╗████████╗
-    # ██║     ██╔══██╗████╗  ██║██╔════╝     ██╔════╝██╔════╝██║     ██╔════╝██╔════╝╚══██╔══╝
-    # ██║     ███████║██╔██╗ ██║██║  ███╗    ███████╗█████╗  ██║     █████╗  ██║        ██║
-    # ██║     ██╔══██║██║╚██╗██║██║   ██║    ╚════██║██╔══╝  ██║     ██╔══╝  ██║        ██║
-    # ███████╗██║  ██║██║ ╚████║╚██████╔╝    ███████║███████╗███████╗███████╗╚██████╗   ██║
-    # ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝     ╚══════╝╚══════╝╚══════╝╚══════╝ ╚═════╝   ╚═╝
 
     @commands.slash_command(
         name="language_selection",
         description="Displays the dropdown for the language selection",
     )
-    @commands.has_role(1056755317419028560)
-    async def language_selection(self, ctx: discord.ApplicationContext) -> None:
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def language_selection(
+        self, ctx: discord.ApplicationContext
+    ) -> None:  #! To Refactor
         """Displays the dropdown for the language selection"""
 
         options: list[discord.SelectOption] = []
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            await cursor.execute("SELECT * FROM programming_languages_roles")
-            roles: list[tuple[str, str, str]] = await cursor.fetchall()
+        roles: list[tuple[str, str, str]] = await self.bot.db.fetch(
+            table="programming_languages_roles",
+        )
 
         if roles == []:
             opt: discord.SelectOption = discord.SelectOption(
@@ -1376,52 +1539,48 @@ class Adminstrative(commands.Cog):
                     value=str(i[0]), label=str(i[1]), description=str(i[2])
                 )
                 options.append(opt)
-            mx_len: int = len(options)
+                mx_len: int = len(options)
 
         if ctx.message:
-            await ctx.edit(view=PersistentView(max_val=mx_len, options=options))
+            await ctx.edit(
+                view=PersistentView(max_val=mx_len, options=options),
+            )
         else:
-            await ctx.respond(view=PersistentView(max_val=mx_len, options=options))
+            await ctx.respond(
+                view=PersistentView(max_val=mx_len, options=options),
+            )
 
-    #  ██████╗██████╗ ███████╗ █████╗ ████████╗███████╗     ██████╗ █████╗ ████████╗███████╗ ██████╗  ██████╗ ██████╗ ██╗   ██╗
-    # ██╔════╝██╔══██╗██╔════╝██╔══██╗╚══██╔══╝██╔════╝    ██╔════╝██╔══██╗╚══██╔══╝██╔════╝██╔════╝ ██╔═══██╗██╔══██╗╚██╗ ██╔╝
-    # ██║     ██████╔╝█████╗  ███████║   ██║   █████╗      ██║     ███████║   ██║   █████╗  ██║  ███╗██║   ██║██████╔╝ ╚████╔╝
-    # ██║     ██╔══██╗██╔══╝  ██╔══██║   ██║   ██╔══╝      ██║     ██╔══██║   ██║   ██╔══╝  ██║   ██║██║   ██║██╔══██╗  ╚██╔╝
-    # ╚██████╗██║  ██║███████╗██║  ██║   ██║   ███████╗    ╚██████╗██║  ██║   ██║   ███████╗╚██████╔╝╚██████╔╝██║  ██║   ██║
-    #  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝     ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝   ╚═╝
-
+    # region Create Category
     async def _create_category_create_variables_initializer(
         self,
         ctx: discord.ApplicationContext,
         category_name: str,
         category_type: str,
-        database: Connection,
-        bot_event_wait_func: typing.Any,
     ) -> None:
-
-        print("initializing variables".upper())
-        guild: discord.Guild = ctx.guild  # type: ignore
-        print(f"{guild = }")
+        """."""
+        Logger().info("initializing variables")
+        guild: discord.Guild = ctx.guild
+        database: CustomDatabase = self.bot.db
+        Logger().info(f"{guild = }")
 
         category: discord.CategoryChannel = await guild.create_category(
             name=category_name
         )
-        print(f"{category = }")
+        Logger().info(f"{category = }")
+        Logger().info("creating roles")
 
-        print("creating roles".upper())
-        everyone_role: discord.Role = guild.get_role(1002319287308005396)  # type: ignore
-        print(f"{everyone_role = }")
+        everyone_role: discord.Role = guild.get_role(EVERYONE_ROLE_ID)
 
         if category_type.lower() == "code":
-            bot_event_wait_func()
-            async with database.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT * FROM github_colors WHERE name=?", (category_name.lower(),)
-                )
-                role_tuple: typing.Any = await cursor.fetchall()
+            role_tuple: list[tuple[str, str]] = await database.fetch(
+                table="github_colors",
+                search_key="name",
+                parameters=category_name.lower(),
+            )
+            print(role_tuple[0])
 
             if role_tuple:
-                role: tuple[str] = role_tuple[0]
+                role: str = role_tuple[0]
                 role_color_tuple: tuple[str] = hex_to_rgb(role[1])
                 role_base: discord.Role = await guild.create_role(
                     name=role[0].capitalize(),
@@ -1430,7 +1589,9 @@ class Adminstrative(commands.Cog):
                     ),
                 )
             else:
-                modal: ColorSelectorModal = ColorSelectorModal(title="Color Picker")
+                modal: ProgrammingRoleModal = ProgrammingRoleModal(
+                    title="Programming Category"
+                )
                 await ctx.send_modal(modal)
                 if await modal.wait():
                     hex_color: str = await modal.get_color()
@@ -1443,26 +1604,26 @@ class Adminstrative(commands.Cog):
                             role_color_tuple[2],
                         ),
                     )
-            modal_role: ProgrammingRoleDescriptionModal = (
-                ProgrammingRoleDescriptionModal(title="Descrição do cargo")
-            )
-            await ctx.send_modal(modal_role)
-            if await modal_role.wait():
-                role_description: str = await modal_role.get_description()
-            bot_event_wait_func()
-            async with database.cursor() as cursor:
-                add_role_command: str = "INSERT OR IGNORE INTO programming_languages_roles(role_id, role_name, role_description) VALUES(?,?,?)"
-                await cursor.execute(
-                    add_role_command,
-                    (int(role_base.id), role_base.name, role_description),
-                )
-            await database.commit()
-            print(f"{role_base = }")
-            stage_adm_role: discord.Role | None = await guild.create_role(
-                name=f"Adminstrador de Palcos [{role_base.name}]",
-                color=discord.Colour.darker_grey(),
-            )
-            print(f"{stage_adm_role = }")
+                    role_description: str = await modal.get_description()
+                    _args: list[str] = [
+                        "role_id",
+                        "role_name",
+                        "role_description",
+                    ]
+                    _parms = (int(role_base.id), role_base.name, role_description)
+
+                    await self.bot.db.insert(
+                        table="programming_languages_roles",
+                        arguments=_args,
+                        parameters=_parms,
+                    )
+
+                    Logger().info(f"{role_base = }")
+                    stage_adm_role: discord.Role | None = await guild.create_role(
+                        name=f"Administrador de Palcos [{role_base.name}]",
+                        color=discord.Colour.darker_grey(),
+                    )
+                    Logger().info(f"{stage_adm_role = }")
         else:
             modal: ColorSelectorModal = ColorSelectorModal(title="ColorPicker")
             await ctx.send_modal(modal)
@@ -1477,23 +1638,31 @@ class Adminstrative(commands.Cog):
                         role_color_tuple[2],
                     ),
                 )
-            print(f"{role_base = }")
-            stage_adm_role = None
-            role_base: discord.Role = await guild.create_role(name=category_name)
-            print(f"{role_base = }")
+                role_base: discord.Role = await guild.create_role(name=category_name)
+                Logger().info(f"{role_base = }")
+                stage_adm_role = None
+                Logger().info(f"{stage_adm_role = }")
 
-        print("setting roles permissions".upper())
+        Logger().info("setting roles permissions")
+
         everyone_permissions: discord.PermissionOverwrite = discord.PermissionOverwrite(
             view_channel=False,
             connect=False,
         )
-        print(f"{everyone_permissions = }")
+        Logger().info(f"{everyone_permissions = }")
 
         role_permissions: discord.PermissionOverwrite = discord.PermissionOverwrite(
             view_channel=True,
             connect=True,
         )
-        print(f"{role_permissions = }")
+        Logger().info(f"{role_permissions = }")
+
+        roles: list = [everyone_role, role_base]
+
+        permissions: list = [
+            everyone_permissions,
+            role_permissions,
+        ]
 
         if category_type.lower() == "code":
             stage_adm_role_permissions: discord.PermissionOverwrite | None = (
@@ -1505,84 +1674,90 @@ class Adminstrative(commands.Cog):
                     mute_members=True,
                 )
             )
-            print(f"{stage_adm_role_permissions = }")
+            Logger().info(f"{stage_adm_role_permissions = }")
+            permissions.append(stage_adm_role_permissions)
         else:
-            stage_adm_role_permissions = None
+            permissions.append(None)
+
+        if category_type.lower() == "facul":
+            university_role: discord.Role = await guild.get_role(UNIVERSITY_ROLE_ID)
+            university_permissions: discord.PermissionOverwrite = (
+                discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                )
+            )
+            roles.append(university_role)
+            permissions.append(university_permissions)
+        else:
+            permissions.append(None)
+            roles.append(None)
 
         return [
             category,
-            everyone_role,
-            role_base,
-            stage_adm_role,
-            everyone_permissions,
-            role_permissions,
-            stage_adm_role_permissions,
-        ]  # type: ignore
+            roles,
+            permissions,
+        ]
 
     async def _create_category_set_permissions(
         self,
         category: discord.CategoryChannel,
-        everyone_role: discord.Role,
-        everyone_permissions: discord.PermissionOverwrite,
-        role_base: discord.Role,
-        role_permissions: discord.PermissionOverwrite,
-        stage_adm_role: discord.Role,
-        stage_adm_role_permissions: discord.PermissionOverwrite,
+        roles: list,
+        permissions: list,
         category_type: str,
     ) -> None:
+        """."""
 
-        print("setting permissions in category".upper())
-        await category.set_permissions(
-            target=everyone_role, overwrite=everyone_permissions
-        )
-        await category.set_permissions(target=role_base, overwrite=role_permissions)
+        Logger().info("setting permissions in category")
+        print(roles)
+        print(permissions)
+
+        await category.set_permissions(target=roles[0], overwrite=permissions[0])
+        await category.set_permissions(target=roles[1], overwrite=permissions[1])
         if category_type.lower() == "code":
-            await category.set_permissions(
-                target=stage_adm_role, overwrite=stage_adm_role_permissions
-            )
+            if roles[2] is not None:
+                await category.set_permissions(
+                    target=roles[2], overwrite=permissions[2]
+                )
+
+        if category_type.lower() == "facul":
+            await category.set_permissions(target=roles[3], overwrite=permissions[3])
 
     async def _create_category_create_voice_channels(
         self,
         ctx: discord.ApplicationContext,
         category: discord.CategoryChannel,
-        role_permissions: discord.PermissionOverwrite,
-        role: discord.Role,
+        role: list,
         category_type: str,
-        number_of_stage_channels: int = 2,
-        number_of_voice_channels: int = 4,
-        stage_channels_topic: str = "Aula Live",
-        stage_channels_name: str = "Aula Live",
-        voice_channels_name: str = "Estudando",
     ) -> None:
         """Helper function that creates the voice channels in the category_creator command."""
 
-        print("creating voice channels".upper())
+        Logger().info("creating voice channels")
         await ctx.respond("Criando canais de voz")
         if category_type.lower() == "code":
-            for i in range(number_of_stage_channels):
-                st_chan: discord.StageChannel = await category.create_stage_channel(
-                    name=f"{stage_channels_name} {i+1:0>2}", topic=stage_channels_topic
-                )
-                await st_chan.set_permissions(target=role, overwrite=role_permissions)
-                print(f"{st_chan = }")
+            await ctx.respond(
+                "Esta categoria será usada para as aulas?",
+                view=CreateCodeClassView(category=category, role=role),
+            )
 
-            for i in range(number_of_voice_channels):
-                await category.create_voice_channel(
-                    name=f"{voice_channels_name} {i+1:0>2}"
-                )
         elif category_type.lower() == "game":
             for i in range(4):
                 duo_vc: discord.VoiceChannel = await category.create_voice_channel(
                     name=f"Duo {i+1:0>2}"
                 )
                 await duo_vc.edit(user_limit=2)
+
             for i in range(2):
                 squad_vc: discord.VoiceChannel = await category.create_voice_channel(
                     name=f"Squad {i+1:0>2}"
                 )
-                await squad_vc.edit(user_limit=2)
+                await squad_vc.edit(user_limit=4)
+
             for i in range(4):
                 await category.create_voice_channel(name=f"Livre {i+1:0>2}")
+        else:
+            for i in range(4):
+                await category.create_voice_channel(name=f"Canal de voz {i+1:0>2}")
 
     async def _create_category_create_text_channels(
         self,
@@ -1591,40 +1766,42 @@ class Adminstrative(commands.Cog):
         category_type: str,
     ) -> None:
         """Helper function that creates the voice channels in the category_creator command."""
-        print("creating text channels".upper())
+
+        Logger().info("creating text channels")
         await ctx.respond("Criando canais de texto")
 
         w_chan: discord.TextChannel = await category.create_text_channel(
             name="boas-vindas"
         )
-        print(f"{w_chan = }")
+        Logger().info(f"{w_chan = }")
 
         r_chan: discord.TextChannel = await category.create_text_channel(name="regras")
-        print(f"{r_chan = }")
+        Logger().info(f"{r_chan = }")
 
         g_chan: discord.TextChannel = await category.create_text_channel(name="geral")
-        print(f"{g_chan = }")
+        Logger().info(f"{g_chan = }")
+
         await w_chan.move(beginning=True)
         await r_chan.move(after=w_chan)
         await g_chan.move(after=r_chan)
 
-        await w_chan.edit(slowmode_delay=10)
-        await r_chan.edit(slowmode_delay=10)
-        await g_chan.edit(slowmode_delay=10)
+        await w_chan.edit(slowmode_delay=CHANNELS_DELAY)
+        await r_chan.edit(slowmode_delay=CHANNELS_DELAY)
+        await g_chan.edit(slowmode_delay=CHANNELS_DELAY)
 
-        if category_type.lower() == "code":
+        if category_type.lower() in ("code", "facul"):
             s_chan: discord.ForumChannel = await category.create_forum_channel(
                 name="suporte"
             )
-            print(f"{s_chan = }")
+            Logger().info(f"{s_chan = }")
             await s_chan.move(after=g_chan)
-            await s_chan.edit(slowmode_delay=5)
+            await s_chan.edit(slowmode_delay=CHANNELS_DELAY)
 
     @commands.slash_command(
         name="create_category",
         description="Cria uma categoria, os cargos e configura todos os canais",
     )
-    @commands.has_role(1056755317419028560)
+    @commands.has_role(ADMIN_ROLE_ID)
     async def create_category(
         self, ctx: discord.ApplicationContext, name: str, category_type: str
     ) -> None:
@@ -1632,45 +1809,36 @@ class Adminstrative(commands.Cog):
         tem como argumento o nome da linguagem em questão e cria todos os canais base da categoria
         além de criar o cargo e configurar as permissões."""
 
-        if category_type not in ["code", "game"]:
+        if category_type not in ("code", "game", "facul"):
             await ctx.response.send_message("Tipo da categoria não reconhecido.")
             return
 
         [
             category,
-            everyone_role,
-            role_base,
-            stage_adm_role,
-            everyone_permissions,
-            role_permissions,
-            stage_adm_role_permissions,
+            roles,
+            permissions,
         ] = await self._create_category_create_variables_initializer(
             ctx=ctx,
             category_name=name,
             category_type=category_type,
-            database=self.bot.db,
-            bot_event_wait_func=self.bot.db_connected.wait,
-        )  # type: ignore
+        )
 
         await self._create_category_set_permissions(
             category=category,
-            everyone_role=everyone_role,
-            everyone_permissions=everyone_permissions,
-            role_base=role_base,
-            role_permissions=role_permissions,
-            stage_adm_role=stage_adm_role,
-            stage_adm_role_permissions=stage_adm_role_permissions,
             category_type=category_type,
+            roles=roles,
+            permissions=permissions,
         )
 
         await self._create_category_create_text_channels(
             ctx=ctx, category=category, category_type=category_type
         )
+
+        stage_admin_role_tuple: tuple = (roles[2], permissions[2])
         await self._create_category_create_voice_channels(
             ctx=ctx,
             category=category,
-            role=stage_adm_role,
-            role_permissions=stage_adm_role_permissions,
+            role=stage_admin_role_tuple,
             category_type=category_type,
         )
 
@@ -1678,27 +1846,31 @@ class Adminstrative(commands.Cog):
             if not chan.permissions_synced:
                 await chan.edit(sync_permissions=True)
 
-        print("done".upper())
-        await ctx.respond(
-            f"Categoria {category.name}, {role_base.mention} e {stage_adm_role.mention} criados",
-        )
+        Logger().info("done")
+        if roles[2] is not None:
+            await ctx.respond(
+                (
+                    f"Categoria {category.name}, e os cargos {roles[1].mention}"
+                    f" e {roles[2].mention} foram criados."
+                ),
+            )
+        else:
+            await ctx.respond(
+                (
+                    f"Categoria {category.name}, e o cargo {roles[1].mention} foi criado."
+                ),
+            )
 
-    # ██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗     ██████╗███╗   ███╗██████╗
-    # ██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝    ██╔════╝████╗ ████║██╔══██╗
-    # ██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗      ██║     ██╔████╔██║██║  ██║
-    # ██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝      ██║     ██║╚██╔╝██║██║  ██║
-    # ╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗    ╚██████╗██║ ╚═╝ ██║██████╔╝
-    #  ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝     ╚═════╝╚═╝     ╚═╝╚═════╝
+    # endregion
 
     @commands.slash_command(name="welcome", description="Exibe a tela de boas-vindas")
-    @commands.has_role(1056755317419028560)
-    async def welcome(self, ctx: discord.ApplicationContext) -> None:
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def welcome(self, ctx: discord.ApplicationContext) -> None:  #! To refactor
         """."""
-
-        guild: discord.Guild = ctx.guild  # type: ignore
-        rule_channel: discord.TextChannel = guild.get_channel(1056738639813546034)  # type: ignore
-        dev_role: discord.Role = guild.get_role(1058049513111167016)  # type: ignore
-        game_role: discord.Role = guild.get_role(1058052420627857558)  # type: ignore
+        guild: discord.Guild = ctx.guild
+        rule_channel: discord.TextChannel = guild.get_channel(RULES_CHAN_ID)
+        dev_role: discord.Role = guild.get_role(DEV_ROLE_ID)
+        game_role: discord.Role = guild.get_role(GAME_ROLE_ID)
         embed_intro: discord.Embed = discord.Embed(
             type="article",
             timestamp=datetime.now(),
@@ -1719,8 +1891,6 @@ class Adminstrative(commands.Cog):
             Para poder selecionar um cargo de desenvoledor você deverá primeiro obter o cargo base {dev_role.mention} e ele só será obtido pelo usuários que sincronizarem a conta do GitHub com o Discord.
 
             Se você já possui a conta sincronizada, então vá para o menu do servidor e acesse *"Cargos vinculados..."*.
-
-            Após isso você poderá escolher uma das linguagens abaixo.
             """,
             inline=False,
         )
@@ -1741,53 +1911,24 @@ class Adminstrative(commands.Cog):
             inline=False,
         )
         embed_intro.set_author(name="Frontless Programming")
-        embed_intro.set_thumbnail(url=bot_icon_url)
+        embed_intro.set_thumbnail(url=BOT_ICON_URL)
         embed_intro.set_footer(
-            text="Um abraço da FrontlessTeam. ❤️.", icon_url=bot_icon_url
+            text="Um abraço da FrontlessTeam. ❤️.", icon_url=BOT_ICON_URL
         )
-
-        options: list[discord.SelectOption] = []
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            await cursor.execute("SELECT * FROM programming_languages_roles")
-            roles: list[tuple[str, str, str]] = await cursor.fetchall()
-
-        if roles == []:
-            opt: discord.SelectOption = discord.SelectOption(
-                value="None", label="Empty", description="Empty"
-            )
-            mx_len: int = 1
-            options.append(opt)
-        else:
-            for i in roles:
-                opt: discord.SelectOption = discord.SelectOption(
-                    value=str(i[0]), label=str(i[1]), description=str(i[2])
-                )
-                options.append(opt)
-                mx_len: int = len(options)
 
         if ctx.message:
             await ctx.edit(
-                view=PersistentView(max_val=mx_len, options=options),
                 embed=embed_intro,
             )
         else:
             await ctx.respond(
-                view=PersistentView(max_val=mx_len, options=options),
                 embed=embed_intro,
             )
-
-    # ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗    ██╗   ██╗███████╗███████╗██████╗
-    # ██║    ██║██╔══██╗██╔══██╗████╗  ██║    ██║   ██║██╔════╝██╔════╝██╔══██╗
-    # ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║    ██║   ██║███████╗█████╗  ██████╔╝
-    # ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║    ██║   ██║╚════██║██╔══╝  ██╔══██╗
-    # ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║    ╚██████╔╝███████║███████╗██║  ██║
-    #  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝
 
     @commands.slash_command(
         name="warn_user", description="Warns the user [just one time]"
     )
-    @commands.has_role(1056755317419028560)
+    @commands.has_role(ADMIN_ROLE_ID)
     async def warn_user(
         self,
         ctx: discord.ApplicationContext,
@@ -1795,139 +1936,86 @@ class Adminstrative(commands.Cog):
         reason: str,
     ) -> None:
         """."""
-        user_id: int = user.id
-
-        if user_id == ctx.guild.owner_id:  # type: ignore
-            await ctx.respond("Dono do servidor detectado, ação cancelada.")
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
             return
 
-        if user_id == self.bot.user.id:
-            await ctx.respond("FrontlessBot detectado, ação cancelada.")
-            return
+        database: CustomDatabase = self.bot.db
+        parms = (
+            user.name,
+            user.discriminator,
+            int(user.id),
+            reason,
+            "moderation",
+            int(time()),
+        )
 
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            await cursor.execute(
-                "SELECT * FROM active_warns WHERE user_id=?", (user_id,)
-            )
-            user_warn: typing.Any = await cursor.fetchall()
-        if not user_warn:
-            print("user not found in warn table")
-            warn_type: str = "moderation"
-            await self.bot.db_connected.wait()
-            async with self.bot.db.cursor() as cursor:
-                exec_cmd: str = "INSERT OR IGNORE INTO active_warns(user_name, user_discriminator, user_id, reason, type, unix_date) VALUES(?,?,?,?,?,?)"
-                exec_cmd2: str = "INSERT OR IGNORE INTO warns_history(user_name, user_discriminator, user_id, reason, type, unix_date) VALUES(?,?,?,?,?,?)"
-                await cursor.execute(
-                    exec_cmd,
-                    (
-                        user.name,
-                        user.discriminator,
-                        user_id,
-                        reason,
-                        warn_type,
-                        int(time()),
-                    ),
-                )
-                await cursor.execute(
-                    exec_cmd2,
-                    (
-                        user.name,
-                        user.discriminator,
-                        user_id,
-                        reason,
-                        warn_type,
-                        int(time()),
-                    ),
-                )
-            await self.bot.db.commit()
-            mod_log_chan: discord.TextChannel = ctx.guild.get_channel(mod_logs_chan_id)
+        if await warn_user_func(database=database, db_parameters=parms):
+            mod_log_chan: discord.TextChannel = ctx.guild.get_channel(MOD_LOGS_CHAN_ID)
             timeout_embed: discord.Embed = discord.Embed(
                 title="Aviso da moderação",
-                description=f"{user.mention}, este é um aviso da moderação, a proxima sinalização será provida de um timeout.",
+                description=(
+                    f"{user.mention}, este é um aviso da moderação, "
+                    "a proxima sinalização será provida de um timeout."
+                ),
                 colour=discord.Colour.yellow(),
                 timestamp=datetime.now(),
             )
             timeout_embed.set_thumbnail(url=user.avatar.url)
 
             await mod_log_chan.send(embed=timeout_embed)
+            await ctx.respond(f"Aviso aplicado ao usuário {user.mention}.")
         else:
             await ctx.respond(
                 f"usuário {user.mention} já previamente avisado, aplicar timeout?",
                 view=TimeOutPromptView(
-                    user=user,
-                    delete_func=ctx.delete,
-                    reason=reason,
-                    database=self.bot.db,
-                    bot_event_wait_func=self.bot.db_connected.wait,
+                    database=database, reason=reason, user=user, delete_func=ctx.delete
                 ),
             )
 
-    # ██████╗ ███████╗██╗   ██╗ ██████╗ ██╗  ██╗███████╗    ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗
-    # ██╔══██╗██╔════╝██║   ██║██╔═══██╗██║ ██╔╝██╔════╝    ██║    ██║██╔══██╗██╔══██╗████╗  ██║
-    # ██████╔╝█████╗  ██║   ██║██║   ██║█████╔╝ █████╗      ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║
-    # ██╔══██╗██╔══╝  ╚██╗ ██╔╝██║   ██║██╔═██╗ ██╔══╝      ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║
-    # ██║  ██║███████╗ ╚████╔╝ ╚██████╔╝██║  ██╗███████╗    ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║
-    # ╚═╝  ╚═╝╚══════╝  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝╚══════╝     ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝
-
     @commands.slash_command(name="remove_warn", description="Revokes the warning")
-    @commands.has_role(1056755317419028560)
-    async def remove_warn(
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def remove_warn(  #! To refactor
         self, ctx: discord.ApplicationContext, user: discord.User
     ) -> None:
         """."""
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
+            return
+
         user_id: int = user.id
+        database: CustomDatabase = self.bot.db
+        user_warned = await database.fetch(
+            table="active_warns", search_key="user_id", parameters=user_id
+        )
 
-        if user_id == ctx.guild.owner_id:  # type: ignore
-            await ctx.respond("Dono do servidor detectado, ação cancelada.")
-            return
-
-        if user_id == self.bot.user.id:
-            await ctx.respond("FrontlessBot detectado, ação cancelada.")
-            return
-
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            await cursor.execute(
-                "SELECT * FROM active_warns WHERE user_id=?", (user_id,)
-            )
-            user_warn: typing.Any = await cursor.fetchall()
-
-        if not user_warn:
+        if not user_warned:
             print("user not found in warn table")
             await ctx.respond(
                 f"O usuário {user.mention} não tem nenhum aviso no banco de dados."
             )
         else:
-            await self.bot.db_connected.wait()
-            async with self.bot.db.cursor() as cursor:
-                del_cmd: str = "DELETE FROM active_warns WHERE user_id=?"
-                await cursor.execute(del_cmd, (user_id,))
-            await self.bot.db.commit()
-            mod_log_chan: discord.TextChannel = ctx.guild.get_channel(mod_logs_chan_id)
-            timeout_embed: discord.Embed = discord.Embed(
+            await database.delete_where(
+                table="active_warns", search_key="user_id", parameters=user_id
+            )
+            mod_log_chan: discord.TextChannel = ctx.guild.get_channel(MOD_LOGS_CHAN_ID)
+            revoke_warn_embed: discord.Embed = discord.Embed(
                 title="Aviso da moderação",
                 description=f"aviso do {user.mention} revogado pelo moderador {ctx.user.mention}.",
                 colour=discord.Colour.darker_grey(),
                 timestamp=datetime.now(),
             )
-            timeout_embed.set_thumbnail(url=user.avatar.url)
+            revoke_warn_embed.set_thumbnail(url=user.avatar.url)
 
-            await mod_log_chan.send(embed=timeout_embed)
+            await mod_log_chan.send(embed=revoke_warn_embed)
             await ctx.respond(f"Removendo aviso do usuário {user.mention}.")
 
-    # ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗    ██████╗ ███████╗ ██████╗ ██╗   ██╗███████╗███████╗████████╗
-    # ██║    ██║██╔══██╗██╔══██╗████╗  ██║    ██╔══██╗██╔════╝██╔═══██╗██║   ██║██╔════╝██╔════╝╚══██╔══╝
-    # ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║    ██████╔╝█████╗  ██║   ██║██║   ██║█████╗  ███████╗   ██║
-    # ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║    ██╔══██╗██╔══╝  ██║▄▄ ██║██║   ██║██╔══╝  ╚════██║   ██║
-    # ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║    ██║  ██║███████╗╚██████╔╝╚██████╔╝███████╗███████║   ██║
-    #  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝╚══════╝ ╚══▀▀═╝  ╚═════╝ ╚══════╝╚══════╝   ╚═╝
-
     @commands.slash_command(name="warn_request", description="Requests a user warning")
-    async def warn_request(
+    async def warn_request(  #! To refactor
         self, ctx: discord.ApplicationContext, user: discord.User, reason: str
     ) -> None:
         """."""
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
+            return
+
         embed: discord.Embed = discord.Embed(
             color=discord.Colour.yellow(),
             timestamp=datetime.now(),
@@ -1943,22 +2031,13 @@ class Adminstrative(commands.Cog):
                 user=user,
                 reason=reason,
                 database=self.bot.db,
-                guild=ctx.guild,
-                wait_database_function=self.bot.db_connected.wait,
+                timeout=THIRTY_MINUTES,
                 bot=self.bot,
-                timeout=1800,
-            ),  # 1800
+            ),
         )
 
-    # ████████╗██╗███╗   ███╗███████╗ ██████╗ ██╗   ██╗████████╗    ██╗   ██╗███████╗███████╗██████╗
-    # ╚══██╔══╝██║████╗ ████║██╔════╝██╔═══██╗██║   ██║╚══██╔══╝    ██║   ██║██╔════╝██╔════╝██╔══██╗
-    #    ██║   ██║██╔████╔██║█████╗  ██║   ██║██║   ██║   ██║       ██║   ██║███████╗█████╗  ██████╔╝
-    #    ██║   ██║██║╚██╔╝██║██╔══╝  ██║   ██║██║   ██║   ██║       ██║   ██║╚════██║██╔══╝  ██╔══██╗
-    #    ██║   ██║██║ ╚═╝ ██║███████╗╚██████╔╝╚██████╔╝   ██║       ╚██████╔╝███████║███████╗██║  ██║
-    #    ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝  ╚═════╝    ╚═╝        ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝
-
     @commands.slash_command(name="timeout_user", description="Timeouts the user")
-    @commands.has_role(1056755317419028560)
+    @commands.has_role(ADMIN_ROLE_ID)
     async def timeout_user(
         self,
         ctx: discord.ApplicationContext,
@@ -1966,13 +2045,7 @@ class Adminstrative(commands.Cog):
         reason: str,
     ) -> None:
         """."""
-        user_id: int = user.id
-        if user_id == ctx.guild.owner_id:  # type: ignore
-            await ctx.respond("Dono do servidor detectado, ação cancelada.")
-            return
-
-        if user_id == self.bot.user.id:
-            await ctx.respond("FrontlessBot detectado, ação cancelada.")
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
             return
 
         await ctx.response.send_message(
@@ -1983,52 +2056,39 @@ class Adminstrative(commands.Cog):
                 delete_parent_msg_func=None,
                 reason=reason,
                 database=self.bot.db,
-                bot_event_wait_func=self.bot.db_connected.wait,
             ),
         )
 
-    # ██████╗ ███████╗██╗   ██╗ ██████╗ ██╗  ██╗███████╗    ████████╗██╗███╗   ███╗███████╗ ██████╗ ██╗   ██╗████████╗
-    # ██╔══██╗██╔════╝██║   ██║██╔═══██╗██║ ██╔╝██╔════╝    ╚══██╔══╝██║████╗ ████║██╔════╝██╔═══██╗██║   ██║╚══██╔══╝
-    # ██████╔╝█████╗  ██║   ██║██║   ██║█████╔╝ █████╗         ██║   ██║██╔████╔██║█████╗  ██║   ██║██║   ██║   ██║
-    # ██╔══██╗██╔══╝  ╚██╗ ██╔╝██║   ██║██╔═██╗ ██╔══╝         ██║   ██║██║╚██╔╝██║██╔══╝  ██║   ██║██║   ██║   ██║
-    # ██║  ██║███████╗ ╚████╔╝ ╚██████╔╝██║  ██╗███████╗       ██║   ██║██║ ╚═╝ ██║███████╗╚██████╔╝╚██████╔╝   ██║
-    # ╚═╝  ╚═╝╚══════╝  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝╚══════╝       ╚═╝   ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝  ╚═════╝    ╚═╝
-
     @commands.slash_command(name="revoke_timeout", description="Timeouts the user")
-    @commands.has_role(1056755317419028560)
-    async def revoke_timeout(
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def revoke_timeout(  #! To refactor
         self,
         ctx: discord.ApplicationContext,
         user: discord.User,
     ) -> None:
         """."""
-        await user.remove_timeout()
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            del_cmd: str = "DELETE FROM active_timeouts WHERE user_id=?"
-            await cursor.execute(del_cmd, (int(user.id),))
-        await self.bot.db.commit()
-        mod_log_chan: discord.TextChannel = ctx.guild.get_channel(mod_logs_chan_id)
-        timeout_embed: discord.Embed = discord.Embed(
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
+            return
+
+        database: CustomDatabase = self.bot.db
+        await database.delete_where(
+            table="active_timeouts", search_key="user_id", parameters=int(user.id)
+        )
+        mod_log_chan: discord.TextChannel = ctx.guild.get_channel(MOD_LOGS_CHAN_ID)
+
+        revoke_timeout_embed: discord.Embed = discord.Embed(
             title="Aviso da moderação",
             description=f"Timeout do {user.mention} revogado pelo moderador {ctx.user.mention}.",
             colour=discord.Colour.darker_grey(),
             timestamp=datetime.now(),
         )
-        timeout_embed.set_thumbnail(url=user.avatar.url)
+        revoke_timeout_embed.set_thumbnail(url=user.avatar.url)
 
-        await mod_log_chan.send(embed=timeout_embed)
+        await mod_log_chan.send(embed=revoke_timeout_embed)
         await ctx.respond(f"Removido timeout do {user.mention}")
 
-    # ████████╗██╗███╗   ███╗ ██████╗ ██╗   ██╗████████╗    ██████╗ ███████╗ ██████╗ ██╗   ██╗███████╗███████╗████████╗
-    # ╚══██╔══╝██║████╗ ████║██╔═══██╗██║   ██║╚══██╔══╝    ██╔══██╗██╔════╝██╔═══██╗██║   ██║██╔════╝██╔════╝╚══██╔══╝
-    #    ██║   ██║██╔████╔██║██║   ██║██║   ██║   ██║       ██████╔╝█████╗  ██║   ██║██║   ██║█████╗  ███████╗   ██║
-    #    ██║   ██║██║╚██╔╝██║██║   ██║██║   ██║   ██║       ██╔══██╗██╔══╝  ██║▄▄ ██║██║   ██║██╔══╝  ╚════██║   ██║
-    #    ██║   ██║██║ ╚═╝ ██║╚██████╔╝╚██████╔╝   ██║       ██║  ██║███████╗╚██████╔╝╚██████╔╝███████╗███████║   ██║
-    #    ╚═╝   ╚═╝╚═╝     ╚═╝ ╚═════╝  ╚═════╝    ╚═╝       ╚═╝  ╚═╝╚══════╝ ╚══▀▀═╝  ╚═════╝ ╚══════╝╚══════╝   ╚═╝
-
     @commands.slash_command(name="timeout_request", description="Timeouts the user")
-    async def timeout_request(
+    async def timeout_request(  #! To refactor
         self,
         ctx: discord.ApplicationContext,
         user: discord.User,
@@ -2036,6 +2096,9 @@ class Adminstrative(commands.Cog):
         nivel: int,
     ) -> None:
         """."""
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
+            return
+
         embed: discord.Embed = discord.Embed(
             color=discord.Colour.orange(),
             timestamp=datetime.now(),
@@ -2051,28 +2114,20 @@ class Adminstrative(commands.Cog):
             await ctx.respond(
                 embed=embed,
                 view=TimoutRequestView(
-                    user=user,
                     reason=reason,
                     database=self.bot.db,
-                    guild=ctx.guild,
-                    wait_database_function=self.bot.db_connected.wait,
                     bot=self.bot,
-                    timeout=1800,
+                    guild=ctx.guild,
+                    timeout=THIRTY_MINUTES,
                     nivel=nivel,
-                ),  # 1800
+                    user=user,
+                ),
             )
         else:
             await ctx.respond("`Nivel` precisa ser menor que 4")
 
-    # ██████╗  █████╗ ███╗   ██╗    ██╗   ██╗███████╗███████╗██████╗
-    # ██╔══██╗██╔══██╗████╗  ██║    ██║   ██║██╔════╝██╔════╝██╔══██╗
-    # ██████╔╝███████║██╔██╗ ██║    ██║   ██║███████╗█████╗  ██████╔╝
-    # ██╔══██╗██╔══██║██║╚██╗██║    ██║   ██║╚════██║██╔══╝  ██╔══██╗
-    # ██████╔╝██║  ██║██║ ╚████║    ╚██████╔╝███████║███████╗██║  ██║
-    # ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝
-
     @commands.slash_command(name="ban_user", description="bans a user")
-    @commands.has_role(1056755317419028560)
+    @commands.has_role(ADMIN_ROLE_ID)
     async def ban_user(
         self,
         ctx: discord.ApplicationContext,
@@ -2080,13 +2135,7 @@ class Adminstrative(commands.Cog):
         reason: str,
     ) -> None:
         """."""
-        user_id: int = user.id
-        if user_id == ctx.guild.owner_id:  # type: ignore
-            await ctx.respond("Dono do servidor detectado, ação cancelada.")
-            return
-
-        if user_id == self.bot.user.id:
-            await ctx.respond("FrontlessBot detectado, ação cancelada.")
+        if await user_check(user_id=int(user.id), context=ctx, bot=self.bot):
             return
 
         await ctx.response.send_message(
@@ -2096,29 +2145,19 @@ class Adminstrative(commands.Cog):
                 user=user,
                 reason=reason,
                 database=self.bot.db,
-                bot_event_wait_func=self.bot.db_connected.wait,
             ),
         )
 
-    # ██╗   ██╗███╗   ██╗██████╗  █████╗ ███╗   ██╗    ██╗   ██╗███████╗███████╗██████╗
-    # ██║   ██║████╗  ██║██╔══██╗██╔══██╗████╗  ██║    ██║   ██║██╔════╝██╔════╝██╔══██╗
-    # ██║   ██║██╔██╗ ██║██████╔╝███████║██╔██╗ ██║    ██║   ██║███████╗█████╗  ██████╔╝
-    # ██║   ██║██║╚██╗██║██╔══██╗██╔══██║██║╚██╗██║    ██║   ██║╚════██║██╔══╝  ██╔══██╗
-    # ╚██████╔╝██║ ╚████║██████╔╝██║  ██║██║ ╚████║    ╚██████╔╝███████║███████╗██║  ██║
-    #  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝     ╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝
-
     @commands.slash_command(name="unban_user", description="unbans a user")
-    @commands.has_role(1056755317419028560)
-    async def unban_user(
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def unban_user(  #! To refactor
         self,
         ctx: discord.ApplicationContext,
         reason: str,
     ) -> None:
         """."""
         guild: discord.Guild = ctx.guild
-
-        bans: list = await guild.bans().flatten()
-
+        bans: list = await guild.bans().flatten()  # BanEntry
         options: list[discord.SelectOption] = []
         banned_users: list[discord.User] = []
         for i in bans:
@@ -2136,7 +2175,7 @@ class Adminstrative(commands.Cog):
         else:
             mx_val: int = len(options)
 
-        if bans == []:
+        if not bans:
             await ctx.response.send_message(content="Não existem usuários banidos.")
         else:
             await ctx.response.send_message(
@@ -2145,35 +2184,28 @@ class Adminstrative(commands.Cog):
                     delete_func=ctx.delete,
                     reason=reason,
                     database=self.bot.db,
-                    bot_event_wait_func=self.bot.db_connected.wait,
                     options=options,
                     max_val=mx_val,
                     bans=banned_users,
                 ),
             )
 
-    # ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗     ██╗      ██████╗  ██████╗██╗  ██╗
-    # ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗    ██║     ██╔═══██╗██╔════╝██║ ██╔╝
-    # ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝    ██║     ██║   ██║██║     █████╔╝
-    # ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗    ██║     ██║   ██║██║     ██╔═██╗
-    # ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║    ███████╗╚██████╔╝╚██████╗██║  ██╗
-    # ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝
-
     @commands.slash_command(name="lock", description="locks the server in case of raid")
-    @commands.has_role(1056755317419028560)
-    async def lock(self, ctx: discord.ApplicationContext) -> None:
+    @commands.has_role(ADMIN_ROLE_ID)
+    async def lock(self, ctx: discord.ApplicationContext) -> None:  #! To refactor
         """."""
         guild: discord.Guild = ctx.guild
         user: discord.User = ctx.user
+        database: CustomDatabase = self.bot.db
         for category in guild.categories:
             if category.name.lower() == "server_lock":
-                is_server_lock: bool = False
+                is_server_lock: bool = True
                 lock_category: discord.CategoryChannel = category
                 break
         else:
-            is_server_lock: bool = True
+            is_server_lock: bool = False
 
-        if is_server_lock:
+        if not is_server_lock:
             curr_unix_time: int = int(time())
             embed: discord.Embed = discord.Embed(
                 title="Alerta de invasão (raid)",
@@ -2188,9 +2220,9 @@ class Adminstrative(commands.Cog):
             Até que essa situação se resolva vocês serão notificados através deste canal.""",
                 inline=False,
             )
-            embed.set_author(name="Frontless Programming", icon_url=bot_icon_url)
+            embed.set_author(name="Frontless Programming", icon_url=BOT_ICON_URL)
             embed.set_footer(
-                text="Atenciosamente, FrontlessTeam.", icon_url=bot_icon_url
+                text="Atenciosamente, FrontlessTeam.", icon_url=BOT_ICON_URL
             )
 
             sec_perms: discord.PermissionOverwrite = discord.PermissionOverwrite(
@@ -2234,28 +2266,15 @@ class Adminstrative(commands.Cog):
             ] = guild.channels
             await ctx.response.send_message(content="Trancando servidor.")
 
-            ins_cmd: str = "INSERT OR IGNORE INTO lock_state(role_id, channel_id, permissions_bin, unix_date) VALUES(?,?,?,?)"
-            await self.bot.db_connected.wait()
-            async with self.bot.db.cursor() as cursor:
-                await cursor.execute("DELETE FROM lock_state")
-                for role in guild.roles:
-                    for chan in guild.channels:
-                        perms: discord.Permissions = chan.permissions_for(role)
-                        await cursor.execute(
-                            ins_cmd,
-                            (
-                                int(role.id),
-                                int(chan.id),
-                                int(perms.value),
-                                curr_unix_time,
-                            ),
-                        )
-            await self.bot.db.commit()
+            await database.lock_state_func(
+                roles=roles_list, channels=chan_list, curr_unix_time=curr_unix_time
+            )
 
             for role in roles_list:
                 for chan in chan_list:
-                    print(role, chan)
+                    print(f"Settings permissions for role: {role} on channel: {chan}.")
                     await chan.set_permissions(target=role, overwrite=ever_perms)
+            print("DONE.")
 
             lock_category: discord.CategoryChannel = await guild.create_category(
                 name="server_lock"
@@ -2279,20 +2298,16 @@ class Adminstrative(commands.Cog):
         else:
             await ctx.response.send_message(content="Server já trancado.")
 
-    # ██████╗ ███████╗███████╗████████╗ ██████╗ ██████╗ ███████╗
-    # ██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██╔════╝
-    # ██████╔╝█████╗  ███████╗   ██║   ██║   ██║██████╔╝█████╗
-    # ██╔══██╗██╔══╝  ╚════██║   ██║   ██║   ██║██╔══██╗██╔══╝
-    # ██║  ██║███████╗███████║   ██║   ╚██████╔╝██║  ██║███████╗
-    # ╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝
-
     @commands.slash_command(name="restore", description="restore the server lock")
     @commands.is_owner()
-    async def restore(self, ctx: discord.ApplicationContext) -> None:
+    async def restore(self, ctx: discord.ApplicationContext) -> None:  #! To refactor
         """."""
         guild: discord.Guild = ctx.guild
+        database: CustomDatabase = self.bot.db
+        final_permissions_result_dict: dict[str, bool] = {}
         for category in guild.categories:
             if category.name.lower() == "server_lock":
+                print(category.name.lower())
                 is_server_lock: bool = True
                 lock_category: discord.CategoryChannel = category
                 break
@@ -2301,320 +2316,71 @@ class Adminstrative(commands.Cog):
 
         if is_server_lock:
             await ctx.response.send_message(content="Restaurando servidor.")
-            perms_dict: dict[str, int] = discord.Permissions.VALID_FLAGS
+            permissions_dict: dict[str, int] = discord.Permissions.VALID_FLAGS
+            state = await database.fetch(table="lock_state")
+            for item in state:
+                channel: discord.TextChannel = guild.get_channel(int(item[1]))
+                role: discord.Role = guild.get_role(int(item[0]))
+                permssions_int: discord.Permissions = discord.Permissions(int(item[2]))
+                for _k, _v in permissions_dict.items():
+                    final_permissions_result_dict[_k] = bool(
+                        (int(permssions_int.value) & int(_v)) == int(_v)
+                    )
 
-            print(lock_category)
-            print(perms_dict)
-            await self.bot.db_connected.wait()
-            async with self.bot.db.cursor() as cursor:
-                await cursor.execute("SELECT * FROM lock_state")
-                state = await cursor.fetchall()
-
-            for i in state:
-                chan: discord.TextChannel = guild.get_channel(int(i[1]))
-                role: discord.Role = guild.get_role(int(i[0]))
-                perms_int: discord.Permissions = discord.Permissions(int(i[2]))
-                perms: discord.PermissionOverwrite = discord.PermissionOverwrite(
-                    add_reactions=bool(
-                        (int(perms_int.value) & int(perms_dict["add_reactions"]))
-                        == int(perms_dict["add_reactions"])
-                    ),
-                    administrator=bool(
-                        (int(perms_int.value) & int(perms_dict["administrator"]))
-                        == int(perms_dict["administrator"])
-                    ),
-                    attach_files=bool(
-                        (int(perms_int.value) & int(perms_dict["attach_files"]))
-                        == int(perms_dict["attach_files"])
-                    ),
-                    ban_members=bool(
-                        (int(perms_int.value) & int(perms_dict["ban_members"]))
-                        == int(perms_dict["ban_members"])
-                    ),
-                    change_nickname=bool(
-                        (int(perms_int.value) & int(perms_dict["change_nickname"]))
-                        == int(perms_dict["change_nickname"])
-                    ),
-                    connect=bool(
-                        (int(perms_int.value) & int(perms_dict["connect"]))
-                        == int(perms_dict["connect"])
-                    ),
-                    create_instant_invite=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["create_instant_invite"])
-                        )
-                        == int(perms_dict["create_instant_invite"])
-                    ),
-                    create_private_threads=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["create_private_threads"])
-                        )
-                        == int(perms_dict["create_private_threads"])
-                    ),
-                    create_public_threads=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["create_public_threads"])
-                        )
-                        == int(perms_dict["create_public_threads"])
-                    ),
-                    deafen_members=bool(
-                        (int(perms_int.value) & int(perms_dict["deafen_members"]))
-                        == int(perms_dict["deafen_members"])
-                    ),
-                    embed_links=bool(
-                        (int(perms_int.value) & int(perms_dict["embed_links"]))
-                        == int(perms_dict["embed_links"])
-                    ),
-                    external_emojis=bool(
-                        (int(perms_int.value) & int(perms_dict["external_emojis"]))
-                        == int(perms_dict["external_emojis"])
-                    ),
-                    external_stickers=bool(
-                        (int(perms_int.value) & int(perms_dict["external_stickers"]))
-                        == int(perms_dict["external_stickers"])
-                    ),
-                    kick_members=bool(
-                        (int(perms_int.value) & int(perms_dict["kick_members"]))
-                        == int(perms_dict["kick_members"])
-                    ),
-                    manage_channels=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_channels"]))
-                        == int(perms_dict["manage_channels"])
-                    ),
-                    manage_emojis=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_emojis"]))
-                        == int(perms_dict["manage_emojis"])
-                    ),
-                    manage_emojis_and_stickers=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["manage_emojis_and_stickers"])
-                        )
-                        == int(perms_dict["manage_emojis_and_stickers"])
-                    ),
-                    manage_events=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_events"]))
-                        == int(perms_dict["manage_events"])
-                    ),
-                    manage_guild=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_guild"]))
-                        == int(perms_dict["manage_guild"])
-                    ),
-                    manage_messages=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_messages"]))
-                        == int(perms_dict["manage_messages"])
-                    ),
-                    manage_nicknames=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_nicknames"]))
-                        == int(perms_dict["manage_nicknames"])
-                    ),
-                    manage_permissions=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_permissions"]))
-                        == int(perms_dict["manage_permissions"])
-                    ),
-                    manage_roles=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_roles"]))
-                        == int(perms_dict["manage_roles"])
-                    ),
-                    manage_threads=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_threads"]))
-                        == int(perms_dict["manage_threads"])
-                    ),
-                    manage_webhooks=bool(
-                        (int(perms_int.value) & int(perms_dict["manage_webhooks"]))
-                        == int(perms_dict["manage_webhooks"])
-                    ),
-                    mention_everyone=bool(
-                        (int(perms_int.value) & int(perms_dict["mention_everyone"]))
-                        == int(perms_dict["mention_everyone"])
-                    ),
-                    moderate_members=bool(
-                        (int(perms_int.value) & int(perms_dict["moderate_members"]))
-                        == int(perms_dict["moderate_members"])
-                    ),
-                    move_members=bool(
-                        (int(perms_int.value) & int(perms_dict["move_members"]))
-                        == int(perms_dict["move_members"])
-                    ),
-                    mute_members=bool(
-                        (int(perms_int.value) & int(perms_dict["mute_members"]))
-                        == int(perms_dict["mute_members"])
-                    ),
-                    priority_speaker=bool(
-                        (int(perms_int.value) & int(perms_dict["priority_speaker"]))
-                        == int(perms_dict["priority_speaker"])
-                    ),
-                    read_message_history=bool(
-                        (int(perms_int.value) & int(perms_dict["read_message_history"]))
-                        == int(perms_dict["read_message_history"])
-                    ),
-                    read_messages=bool(
-                        (int(perms_int.value) & int(perms_dict["read_messages"]))
-                        == int(perms_dict["read_messages"])
-                    ),
-                    request_to_speak=bool(
-                        (int(perms_int.value) & int(perms_dict["request_to_speak"]))
-                        == int(perms_dict["request_to_speak"])
-                    ),
-                    send_messages=bool(
-                        (int(perms_int.value) & int(perms_dict["send_messages"]))
-                        == int(perms_dict["send_messages"])
-                    ),
-                    send_messages_in_threads=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["send_messages_in_threads"])
-                        )
-                        == int(perms_dict["send_messages_in_threads"])
-                    ),
-                    send_tts_messages=bool(
-                        (int(perms_int.value) & int(perms_dict["send_tts_messages"]))
-                        == int(perms_dict["send_tts_messages"])
-                    ),
-                    speak=bool(
-                        (int(perms_int.value) & int(perms_dict["speak"]))
-                        == int(perms_dict["speak"])
-                    ),
-                    start_embedded_activities=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["start_embedded_activities"])
-                        )
-                        == int(perms_dict["start_embedded_activities"])
-                    ),
-                    stream=bool(
-                        (int(perms_int.value) & int(perms_dict["stream"]))
-                        == int(perms_dict["stream"])
-                    ),
-                    use_application_commands=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["use_application_commands"])
-                        )
-                        == int(perms_dict["use_application_commands"])
-                    ),
-                    use_external_emojis=bool(
-                        (int(perms_int.value) & int(perms_dict["use_external_emojis"]))
-                        == int(perms_dict["use_external_emojis"])
-                    ),
-                    use_external_stickers=bool(
-                        (
-                            int(perms_int.value)
-                            & int(perms_dict["use_external_stickers"])
-                        )
-                        == int(perms_dict["use_external_stickers"])
-                    ),
-                    use_slash_commands=bool(
-                        (int(perms_int.value) & int(perms_dict["use_slash_commands"]))
-                        == int(perms_dict["use_slash_commands"])
-                    ),
-                    use_voice_activation=bool(
-                        (int(perms_int.value) & int(perms_dict["use_voice_activation"]))
-                        == int(perms_dict["use_voice_activation"])
-                    ),
-                    view_audit_log=bool(
-                        (int(perms_int.value) & int(perms_dict["view_audit_log"]))
-                        == int(perms_dict["view_audit_log"])
-                    ),
-                    view_channel=bool(
-                        (int(perms_int.value) & int(perms_dict["view_channel"]))
-                        == int(perms_dict["view_channel"])
-                    ),
-                    view_guild_insights=bool(
-                        (int(perms_int.value) & int(perms_dict["view_guild_insights"]))
-                        == int(perms_dict["view_guild_insights"])
-                    ),
+                permissions_final: discord.PermissionOverwrite = (
+                    discord.PermissionOverwrite(**final_permissions_result_dict)
                 )
-                print(f"{chan.name =}\t{role.name =}")
-                await chan.set_permissions(target=role, overwrite=perms)
-                if not chan.permissions_synced:
-                    await chan.edit(sync_permissions=True)
-                    await chan.edit(slowmode_delay=5)
+                print(f"Restoring permissions for role {role} on channel {channel}.")
+                await channel.set_permissions(target=role, overwrite=permissions_final)
+            print("DONE")
+
+            for item in state:
+                channel: discord.TextChannel = guild.get_channel(int(item[1]))
+                if not channel.permissions_synced:
+                    print(f"Synchronizing permissions for channel {channel.name}")
+                    await channel.edit(sync_permissions=True)
+                    print(f"Setting 5 seconds slowmode for channel {channel.name}")
+                    await channel.edit(slowmode_delay=5)
+            print("DONE")
 
             for chan_ in lock_category.channels:
                 await chan_.delete()
             await lock_category.delete()
+            await database.clear_table("lock_state")
 
-            await self.bot.db_connected.wait()
-            async with self.bot.db.cursor() as cursor:
-                await cursor.execute("DELETE FROM lock_state")
-            await self.bot.db.commit()
         else:
             await ctx.response.send_message(content="Servidor não trancado.")
-
-    #  ██████╗  ███╗   ██╗          ██████╗  ███████╗  █████╗  ██████╗  ██╗   ██╗
-    # ██╔═══██╗ ████╗  ██║          ██╔══██╗ ██╔════╝ ██╔══██╗ ██╔══██╗ ╚██╗ ██╔╝
-    # ██║   ██║ ██╔██╗ ██║          ██████╔╝ █████╗   ███████║ ██║  ██║  ╚████╔╝
-    # ██║   ██║ ██║╚██╗██║          ██╔══██╗ ██╔══╝   ██╔══██║ ██║  ██║   ╚██╔╝
-    # ╚██████╔╝ ██║ ╚████║ ███████╗ ██║  ██║ ███████╗ ██║  ██║ ██████╔╝    ██║
-    #  ╚═════╝  ╚═╝  ╚═══╝ ╚══════╝ ╚═╝  ╚═╝ ╚══════╝ ╚═╝  ╚═╝ ╚═════╝     ╚═╝
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         """Listener para reativar os botões ao iniciar do bot"""
-        options: list[discord.SelectOption] = []
-        await self.bot.db_connected.wait()
-        async with self.bot.db.cursor() as cursor:
-            await cursor.execute("SELECT * FROM programming_languages_roles")
-            roles: list[tuple[str, str, str]] = await cursor.fetchall()
-
-        if roles == []:
-            opt: discord.SelectOption = discord.SelectOption(
-                value="None", label="Empty", description="Empty"
-            )
-            mx_len: int = 1
-            options.append(opt)
-        else:
-            for i in roles:
-                opt: discord.SelectOption = discord.SelectOption(
-                    value=str(i[0]), label=str(i[1]), description=str(i[2])
-                )
-                options.append(opt)
-                mx_len: int = len(options)
-        if not self.bot.persistent_views_added:
-            self.bot.add_view(PersistentView(max_val=mx_len, options=options))
-            self.bot.persistent_views_added = True
-
-    # ███████╗██████╗ ██████╗  ██████╗ ██████╗     ██╗  ██╗ █████╗ ███╗   ██╗██████╗ ██╗     ███████╗██████╗
-    # ██╔════╝██╔══██╗██╔══██╗██╔═══██╗██╔══██╗    ██║  ██║██╔══██╗████╗  ██║██╔══██╗██║     ██╔════╝██╔══██╗
-    # █████╗  ██████╔╝██████╔╝██║   ██║██████╔╝    ███████║███████║██╔██╗ ██║██║  ██║██║     █████╗  ██████╔╝
-    # ██╔══╝  ██╔══██╗██╔══██╗██║   ██║██╔══██╗    ██╔══██║██╔══██║██║╚██╗██║██║  ██║██║     ██╔══╝  ██╔══██╗
-    # ███████╗██║  ██║██║  ██║╚██████╔╝██║  ██║    ██║  ██║██║  ██║██║ ╚████║██████╔╝███████╗███████╗██║  ██║
-    # ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚══════╝╚═╝  ╚═╝
 
     async def cog_command_error(
         self, ctx: commands.Context, error: commands.CommandError
     ) -> None:
+        """."""
+        base_err_msg: str = (
+            f"Permissão negada {ctx.author.name} esse comando só pode ser usado"
+        )
         if isinstance(error, commands.MissingRole):
             await ctx.send(
-                f"Permissão negada {ctx.author.name} esse comando só pode ser usado por um administrador.",  # pylint: disable=line-too-long
+                content=f"{base_err_msg} por um administrador.",
                 reference=ctx.message,
                 delete_after=4,
             )
         elif isinstance(error, commands.NotOwner):
             await ctx.send(
-                f"Permissão negada {ctx.author.name} esse comando só pode ser usado pelo dono do servidor.",  # pylint: disable=line-too-long
+                content=f"{base_err_msg} pelo dono do servidor.",
                 reference=ctx.message,
                 delete_after=4,
             )
         else:
             await ctx.send(
-                "Um erro inesperado ocorreu.",  # pylint: disable=line-too-long
+                "Um erro inesperado ocorreu.",
                 reference=ctx.message,
                 delete_after=4,
             )
-            raise error  # Here we raise other errors to ensure they aren't ignored
-
-
-# ███████╗███████╗████████╗██╗   ██╗██████╗
-# ██╔════╝██╔════╝╚══██╔══╝██║   ██║██╔══██╗
-# ███████╗█████╗     ██║   ██║   ██║██████╔╝
-# ╚════██║██╔══╝     ██║   ██║   ██║██╔═══╝
-# ███████║███████╗   ██║   ╚██████╔╝██║
-# ╚══════╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝
+            raise error
 
 
 def setup(bot) -> None:
