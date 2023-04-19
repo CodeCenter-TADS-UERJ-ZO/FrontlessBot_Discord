@@ -2,6 +2,10 @@
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
+Esse é o bot oficial da FrontlessProgramming, uma comunidade no Discord onde programadores podem interagir entre-si, para entrar [clique aqui.](https://discord.gg/TVdcvYTuZb)
+
+Ou digite este link: <https://discord.gg/TVdcvYTuZb>
+
 ## Configurar o ambiente de desenvolvimento
 
 installe o virtualenv e inicialize o venv:
